@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+
+# ML artifacts / large files
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+checkpoints/
+outputs/
+results/
+wandb/
+logs/
+*.log

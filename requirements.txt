@@ -1,0 +1,19 @@
+# PhysisForcing requirements (preliminary; will be finalized with the code release).
+# Install PyTorch separately first, e.g.:
+#   pip install torch==2.5.1 torchvision==0.20.1
+
+numpy
+einops
+opencv-python
+pillow
+imageio
+imageio-ffmpeg
+ftfy
+regex
+tqdm
+omegaconf
+safetensors
+accelerate
+transformers
+diffusers
+huggingface-hub
