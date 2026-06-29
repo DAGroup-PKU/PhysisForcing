@@ -26,7 +26,6 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 `PF-Cosmos` = Cosmos3-Nano + PhysisForcing&nbsp;&nbsp;|&nbsp;&nbsp;`PF-Wan` = Wan + PhysisForcing
 
-<p align="center"><img src="assets/method.png" width="100%"/></p>
 
 ## 🔥 News
 
