@@ -14,7 +14,7 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 <p align="center">
   <a href="https://dagroup-pku.github.io/PhysisForcing.github.io/"><img src="https://img.shields.io/badge/Project-Page-1f8acb"></a>
-  <a href="https://arxiv.org/abs/XXXX.XXXXX"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b"></a>
+  <a href="https://arxiv.org/abs/2606.28128"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-3fa34d"></a>
 </p>
 
@@ -118,7 +118,7 @@ All scores are normalized percentages (higher is better, only the **Avg.** colum
 </tr>
 </table>
 
-Full per-metric tables and ablations are in the [paper](https://arxiv.org/abs/XXXX.XXXXX).
+Full per-metric tables and ablations are in the [paper](https://arxiv.org/abs/2606.28128).
 
 ## ⚙️ Installation & Usage
 
@@ -155,7 +155,7 @@ If you find PhysisForcing useful, please consider giving a ⭐ and citing:
   author={Zhang, Peiwen and Deng, Yufan and Sun, Shangkun and Ma, Juncheng and
           Wang, Duomin and Du, Jonas and Pan, Zilin and Huang, Ye and Liang, Hao and
           Huang, Songyan and Zhang, Ruihua and Xie, Enze and Liu, Ming-Yu and Zhou, Daquan},
-  journal={arXiv preprint arXiv:XXXX.XXXXX},
+  journal={arXiv preprint arXiv:2606.28128},
   year={2026}
 }
 ```
