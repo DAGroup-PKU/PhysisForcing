@@ -36,8 +36,7 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 ## 📑 Todo List
 
-- [ ] Code & checkpoints for **PF-Wan** — `[2026.07.01]`
-- [ ] Code & checkpoints for **PF-Cosmos** (Cosmos3-Nano) — `[2026.07.03]`
+- [ ] Inference code & checkpoints for **PF-Wan** & **PF-Cosmos** — `[2026.07.02]`
 
 ## 🎥 Demo
 
