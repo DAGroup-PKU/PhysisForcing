@@ -3,7 +3,7 @@
 <!-- Optional: drop a logo at assets/physisforcing_logo.png -->
 <!-- <img src="assets/physisforcing_logo.png" width="220"/> -->
 
-# 🤖 PhysisForcing: Physics Reinforced World Simulator for Robotic Manipulation 🔥
+# PhysisForcing: Physics Reinforced World Simulator for Robotic Manipulation 🔥
 
 Peiwen Zhang\*, Yufan Deng\*, Shangkun Sun\*, Juncheng Ma, Duomin Wang†, Jonas Du,
 Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Yu Liu, Daquan Zhou‡
@@ -41,13 +41,10 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 **The video below is a compressed preview. Full HD demos and the complete set of side-by-side qualitative comparisons (playable videos across embodiments and tasks) are best viewed on the [Project Page](https://dagroup-pku.github.io/PhysisForcing.github.io/).**
 
-<!--
-  To make the video play inline, edit this README on GitHub (pencil icon),
-  delete the placeholder line below, then drag `assets/demo.mp4` into the editor.
-  GitHub will replace it with a https://github.com/user-attachments/assets/<id> URL
-  that renders as a real video player.
--->
-https://github.com/user-attachments/assets/REPLACE_BY_DRAGGING_demo.mp4
+
+https://github.com/user-attachments/assets/e6d5fefd-5f90-4610-a38f-112a151f48e4
+
+
 
 ## 📈 Results
 
