@@ -6,7 +6,7 @@
 # PhysisForcing: Physics Reinforced World Simulator for Robotic Manipulation 🔥
 
 Peiwen Zhang\*, Yufan Deng\*, Shangkun Sun\*, Juncheng Ma, Duomin Wang†, Jonas Du,
-Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Yu Liu, Daquan Zhou‡
+Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Yu Liu, Daquan Zhou†‡
 
 > Peking University · NVIDIA
 >
@@ -15,6 +15,8 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 <p align="center">
   <a href="https://dagroup-pku.github.io/PhysisForcing.github.io/"><img src="https://img.shields.io/badge/Project-Page-1f8acb"></a>
   <a href="https://arxiv.org/abs/2606.28128"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b"></a>
+  <a href="https://huggingface.co/papers/2606.28128"><img src="https://img.shields.io/badge/Hugging%20Face-Daily%20Paper-ffcc4d"></a>
+  <a href="#-todo-list"><img src="https://img.shields.io/badge/Checkpoints-Coming%20Soon-f9a825"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-3fa34d"></a>
 </p>
 
@@ -29,7 +31,8 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 ## 🔥 News
 
-- `[2026.06.29]` 🔥 We release the **arXiv paper** and **project page** of PhysisForcing.
+- `[2026.06.29]` 🚀 Code and model weights will be open-sourced within one week.
+- `[2026.06.29]` 🔥 We release the **[arXiv paper](https://arxiv.org/abs/2606.28128)** and **[project page](https://dagroup-pku.github.io/PhysisForcing.github.io/)** of PhysisForcing.
 
 ## 📑 Todo List
 
