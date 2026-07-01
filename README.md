@@ -31,12 +31,13 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 ## 🔥 News
 
-- `[2026.06.29]` 🚀 Code and model weights will be open-sourced within one week.
+- `[2026.06.29]` 🚀 Code and model weights will be open-sourced within one week (Expected: 2026.07.06).
 - `[2026.06.29]` 🔥 We release the **[arXiv paper](https://arxiv.org/abs/2606.28128)** and **[project page](https://dagroup-pku.github.io/PhysisForcing.github.io/)** of PhysisForcing.
 
 ## 📑 Todo List
 
-- [ ] Inference code & checkpoints for **PF-Wan** & **PF-Cosmos** — `[2026.07.03]`
+- [ ] Inference code & checkpoints for **PF-Wan** & **PF-Cosmos**
+- [ ] Training code & auxiliary model checkpoints
 
 ## 🎥 Demo
 
