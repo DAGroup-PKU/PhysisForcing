@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_004",
+  "prompt": "The robotic gripper, a black jointed claw mounted on a silver robotic arm with visible cables and a white block-like wrist component, takes out one piece of clothing from the wardrobe. Inside the open wardrobe, multiple garments hang from a horizontal rod on plastic hangers, including a dark item toward the left and a light blue item toward the right. The gripper positions itself near a tan/brown hanging garment and takes out the piece of clothing from the wardrobe with a steady outward pull, drawing it forward from between the other hanging items. The beige wardrobe doors remain open, with a dark handle on the left door and the right door swung wide, while the softly lit interior reveals the hanging rod and the clustered clothing as the selected garment is pulled outward.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_004.jpg"
+}

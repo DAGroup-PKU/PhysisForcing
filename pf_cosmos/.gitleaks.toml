@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: OpenMDW-1.1
+
+[[allowlists]]
+regexes = [
+    '''Qwen3MoeForCausalLM'''
+]
+
+# Upstream object-store references carried over from the framework. The bucket
+# names are generic placeholders (bucket, bucket0/1/4 — not real buckets) and the
+# *.secret entries are credential FILE PATHS whose files are gitignored
+# (see /credentials in .gitignore) and are never committed. These are neither
+# secrets nor keys; allowlist them so scans do not report them as findings.
+[[allowlists]]
+description = "Placeholder object-store URIs and credential file paths"
+regexTarget = "line"
+regexes = [
+    '''(s3|gs)://bucket[0-9]*/''',
+    '''credentials/[A-Za-z0-9_./-]*\.secret''',
+]

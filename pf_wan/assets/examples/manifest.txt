@@ -1,0 +1,7 @@
+The robotic arm grasps a folded cloth, wipes the spill on the table with it, then places the cloth back down@@./assets/examples/images/example_001.jpg
+The robotic arm picks up the red knife and places it into the red case, then grasps the black spoon and drops it into the black container@@./assets/examples/images/example_002.jpg
+The robotic arm grasps the orange cube, lifts it, and places it onto the top of the red cylinder@@./assets/examples/images/example_003.jpg
+The robotic arm grasps the banana, lifts it, and places it onto the plate@@./assets/examples/images/example_004.jpg
+The right robotic arm tilts an orange cup to pour liquid into the gray cup on the coaster, then lifts the orange cup away@@./assets/examples/images/example_005.jpg
+The robotic arm grasps the orange cube, lifts it, and places it on top of the red cylinder@@./assets/examples/images/example_006.jpg
+The dual robotic arms grasp the left and right edges of a towel, lift it up, and bring the edges together to fold the towel in half on the table@@./assets/examples/images/example_007.jpg

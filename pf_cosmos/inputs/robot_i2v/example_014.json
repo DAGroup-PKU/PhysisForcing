@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_014",
+  "prompt": "A white, multi-jointed robotic arm on a low mobile base extends its black robot gripper down toward a crumpled blue piece of clothing lying on the gray carpet-tile floor. The robot gripper picks up the blue piece of clothing from the floor, closing its jaws around the fabric and lifting it so the garment dangles beneath the wrist. With the cloth held securely, the arm raises and swings inward toward a hollow laundry basket nearby, a white plastic basket with open slats positioned beside the robot. The robot gripper places the blue piece of clothing into the hollow laundry basket, lowering the bundle into the open top and releasing it so it settles inside. In the background, an orange couch sits against a backdrop of black curtains and a white sheet, while other scattered garments and a larger woven basket with a white liner remain on the floor to the right under steady indoor lighting.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_014.jpg"
+}

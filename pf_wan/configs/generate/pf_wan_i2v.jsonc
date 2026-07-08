@@ -1,0 +1,112 @@
+{
+    // PF_Wan (Wan2.2-A14B) image-to-video inference.
+    //
+    // All weights live in a single bundle under checkpoints/PF_Wan/: the
+    // PF_Wan backbone (a merged vanilla WanModel state_dict -- physics gains
+    // from PhysisForcing are baked in, nothing extra to do at inference)
+    // plus the base T5 encoder, VAE, and tokenizer.
+    "engine": "GenerateI2V",
+    "output_dir": "samples/",
+    "proj_name": "pf_wan_i2v",
+    "inference": {
+        // Manifest file: each line is "<text prompt>@@<image path>".
+        "positive_prompt": "./assets/examples/manifest.txt",
+        "negative_prompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+        "max_area": 307200,
+        "num_frames": 81,
+        "fps": 16,
+        "guidance_scale": 5.0,
+        "seed": 0
+    },
+    "diffusion": {
+        "T": 1000,  // discrete
+        "sampling_timestep": {
+            "_class_name": "TrailingSamplingTimesteps",
+            "num_sampling_steps": 40,
+            "shift": 5.0
+        },
+        "schedule": {
+            "_class_name": "LinearInterpolationSchedule",
+            "pred_type": "v_lerp"
+        },
+        "sampler": {
+            "_class_name": "EulerSampler"
+        }
+    },
+    "meta_model": {
+        "_class_name": "Wan2_1_I2V",
+        "hybrid_gpu_num": 8,
+        "ulysses_size": 8,
+        "fsdp": {
+            "reduce_dtype": "float32",
+            "buffer_dtype": "float32",
+            "sync_module_states": true,
+            "cpu_offload": false,
+            "sharding_strategy": "HYBRID_SHARD",
+            "use_orig_params": false,
+            "auto_wrap_policy": null
+        },
+        "autocast": {
+            "enabled": true,
+            "dtype": "bfloat16"
+        },
+        "backbone": {
+            "_class_name": "WanModel",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/dit.jsonc"
+            },
+            "weight": "./checkpoints/PF_Wan/backbone.pth",
+            "weight_dtype": "bfloat16",
+            "training_state": false,
+            "requires_grad": false,
+            "grad_enabled": false,
+            "fsdp": {
+                "enabled": true,
+                "auto_wrap_policy": "dit_wrap_policy"
+            }
+        },
+        "text_encoder": {
+            "_class_name": "T5Encoder",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/t5_model.jsonc"
+            },
+            "weight": "./checkpoints/PF_Wan/models_t5_umt5-xxl-enc-bf16.pth",
+            "weight_dtype": "bfloat16",
+            "training_state": false,
+            "requires_grad": false,
+            "grad_enabled": false,
+            "fsdp": {
+                "enabled": true,
+                "auto_wrap_policy": "t5_wrap_policy"
+            }
+        },
+        "tokenizer": {
+            "_class_name": "HuggingfaceTokenizer",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/t5_tokenizer.jsonc"
+            },
+            "override_list": [
+                "config.name", "./checkpoints/PF_Wan/google/umt5-xxl"
+            ]
+        },
+        "vae": {
+            "_class_name": "WanVAE",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/vae.jsonc"
+            },
+            "weight": "./checkpoints/PF_Wan/Wan2.1_VAE.pth",
+            "weight_dtype": "float32",
+            "training_state": false,
+            "requires_grad": false,
+            "grad_enabled": false,
+            "wrapped_func": [
+                "encode",
+                "decode"
+            ],
+            "autocast": {
+                "enabled": true,
+                "dtype": "float32"
+            }
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_015",
+  "prompt": "A white-and-black robotic arm extends from the left over a clean white tabletop, its black two-finger gripper hovering above a bright green pear standing upright with a small stem. The robotic arm picks up the pear by lowering the open gripper around the fruit, closing the fingertips against its sides, and lifting it smoothly off the surface so the pear hangs centered beneath the wrist. With the pear held steady, the arm moves it across the table toward a dark-color bowl positioned farther back than a nearby pink bowl. The robotic arm then place the pear in the dark-color bowl by lowering it into the bowl’s opening until the pear sits inside, while soft indoor lighting casts faint shadows beneath the gripper and bowls against the uncluttered lab-like background with a visible cable along the rear edge.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_015.jpg"
+}

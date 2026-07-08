@@ -1,0 +1,24 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Local environments
+.venv/
+.env
+.cluster_env
+
+# Large model weights — never commit (download from Hugging Face: DAGroup-PKU/PF_Wan)
+/checkpoints/*
+*.pth
+*.safetensors
+*.ckpt
+*.bin
+
+# Run artifacts
+/samples/
+/outputs/
+/runs/
+/logs/
+*.log

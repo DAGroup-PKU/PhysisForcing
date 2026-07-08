@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_011",
+  "prompt": "The robotic gripper on the right, a black two-finger end effector attached to an articulated tabletop arm with visible joints and wiring, picks up the green cube block from the dark blue cloth-covered table. Its jaws align around the cube and close evenly, lifting the green cube block a short distance above the fabric while the arm extends diagonally leftward. With the cube held level between the prongs, the arm moves it toward the upright red cylinder block positioned slightly left of center. The robotic gripper then places the green cube block on top of the red cylinder block, lowering until the cube sits squarely on the cylinder’s flat top. A second robot arm remains on the left on its own base, and a person in a light shirt stands behind the setup, while additional colored blocks rest stacked near the far right edge of the table.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_011.jpg"
+}

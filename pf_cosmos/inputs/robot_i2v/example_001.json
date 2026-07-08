@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_001",
+  "prompt": "A black humanoid robot sits upright behind a white table in front of black curtain backdrops, its smooth dark head angled down toward the work surface while its white segmented hands hover over the tabletop. A brown book rests flat on the left side of the table, and a tall black file holder stands nearer the center with open slots visible. The humanoid robot inserts the book from the table into the file holder, extending its left arm to take control of the book and lifting it so the cover tilts from horizontal to nearly vertical. With a steady, deliberate motion, it aligns the lower edge of the book above the file holder’s opening and continues to insert it downward until the book is seated inside the file holder. Overhead lighting casts crisp shadows of the robot’s forearm and the file holder across the table, while a white sheet or thin board remains undisturbed on the right side of the tabletop.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_001.jpg"
+}

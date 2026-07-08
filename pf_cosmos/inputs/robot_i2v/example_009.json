@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_009",
+  "prompt": "Keep the first frame of this video unchanged. In a workspace, a silver robotic arm with light-blue joint covers extends from the right toward a wooden table, where a blue container sits off to the left and a stainless-steel bowl rests near the middle of the wooden surface. A small bottle of salad dressing is placed horizontally on the wooden surface with its green cap pointing toward the left side of the table. The robotic gripper lowers over the bottle of salad dressing and carefully picks up the bottle, closing its black two-pronged fingers around the container near the label. With the bottle secured, the gripper lifts it off the wooden table and holds it slightly above the tabletop while the surrounding objects remain stationary.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_009.jpg"
+}

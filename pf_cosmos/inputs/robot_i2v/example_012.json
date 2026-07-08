@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_012",
+  "prompt": "A white robotic arm with black joints and a black two-finger robotic gripper extends over a light wood tabletop in a small indoor workspace. The robotic gripper picks up the white ceramic mug from near the back edge of the tabletop, lifting it smoothly while the mug’s handle remains visible on the side. With the mug held suspended, the arm shifts laterally across the tabletop area toward the white plate that sits nearby, where a yellow lemon rests centered on the plate. The robotic gripper places the white ceramic mug down to the left side of the white plate, leaving the mug upright on the wood surface beside the plate. Around the work area, an open drawer with papers and a dark cloth sits to the right, a dark blue bowl rests near the drawer, and a window ledge above holds a red cap while a separate black equipment table at right shows a white device glowing blue.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_012.jpg"
+}

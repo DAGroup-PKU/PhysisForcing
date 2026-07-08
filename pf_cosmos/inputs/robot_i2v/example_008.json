@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_008",
+  "prompt": "The robotic gripper, a black two-finger end effector attached to a silver industrial robot arm with looping black cables, carefully picks up the yellow toy block from the wooden table by closing its jaws around the block and lifting it straight up. The yellow toy block rises above the tabletop, passing near two red blocks that remain on the table surface. With the wrist angled downward, the robotic gripper carries the yellow toy block toward the blue cup positioned on the right side of the wooden table. The gripper then accurately places the yellow toy block into the blue cup, lowering it inside the cup’s opening until the block sits within the rim. The action occurs in a room where a plain gray wall meets a colorful patterned wall of vertical stripes, under even indoor lighting that casts soft shadows across the table.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_008.jpg"
+}

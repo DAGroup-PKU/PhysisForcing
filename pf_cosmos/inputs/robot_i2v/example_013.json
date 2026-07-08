@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_013",
+  "prompt": "A white articulated robot arm with black joints and a loop of black cabling extends from the left side over a glossy gray countertop, its black two-finger gripper hovering above a tan woven basket. The robot arm grasps the green bell pepper from the woven basket, closing the gripper around the pepper’s rounded sides while the wrist angles downward. With the pepper held securely, the arm moves across the counter toward the right, passing above scattered kitchen items including a green bowl and other produce on the work surface. It then places the green bell pepper into the container that holds a metallic spoon, lowering the pepper into the shallow woven container where the reflective spoon rests and releasing it gently. The background remains a quiet lounge-like space with dark chairs and small tables near a large grid window, and cool outdoor light mixes with indoor illumination, creating soft reflections on the countertop.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_013.jpg"
+}

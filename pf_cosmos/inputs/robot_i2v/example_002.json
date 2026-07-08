@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_002",
+  "prompt": "A humanoid robot with metallic gray articulated arms and a two-finger gripper picks up a slice of bread from the plate, selecting a top piece from a small stack on a blue plate near the center-left of a light wood table. The right arm bends at the elbow and rotates its wrist so the gripper holds the bread upright by an edge, lifting it cleanly above the plate while the other robotic hand remains partially visible at the left side near a wicker basket and a white desk lamp on a wooden base. Maintaining a steady, deliberate motion, the humanoid robot carries the slice of bread across the tabletop toward a stainless toaster positioned on the right, with a small potted plant sitting just behind the toaster. The robot inserts the slice of bread into the toaster by aligning it over one slot and lowering it straight down until the bread stands inside the opening, then the gripper releases and withdraws slightly, leaving the bread seated in the slot under bright indoor lighting in a lab-like room with gray floor tiles and equipment in the background.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_002.jpg"
+}

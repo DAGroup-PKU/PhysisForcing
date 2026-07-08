@@ -1,0 +1,623 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: OpenMDW-1.1
+
+"""Self-contained regression test for the SFT smoke launch flow.
+
+Re-runs the same ``torchrun`` invocation that ``launch_sft_llava_ov.sh``
+executes (limited to 10 iterations, ``--deterministic`` mode) and asserts that
+the rank-0 ``loss`` and global ``clip_grad_norm`` reproduce the inline goldens
+at the bottom of this file. The launch goes through
+``cosmos_framework.scripts.train --sft-toml=examples/toml/sft_config/<recipe>.toml``
+— the only training entrypoint after the structured-TOML refactor.
+
+Per-GPU goldens
+---------------
+
+Goldens are keyed by detected GPU architecture (``torch.cuda.get_device_name``):
+
+* ``gb200`` — original values captured 2026-05-18 against the legacy
+  ``cosmos_framework.scripts.train`` pipeline. The inputs and VLM backbone
+  used at the time are not part of the OSS layout. The entries stay inline
+  as a documented historical reference; don't re-run the GB200 path locally.
+* ``h100`` — captured on 8× H100 (4-GPU subset). The VLM backbone is
+  ``Qwen/Qwen3-VL-8B-Instruct``. Input paths come from env vars matching the
+  names in ``docs/training.md``::
+
+      MODEL_PATH            VLM backbone (Qwen/Qwen3-VL-8B-Instruct local snapshot)
+
+  Use ``tests/_stage_h100_inputs.sh`` to download/convert this and emit an
+  ``env.sh`` that ``source``s ``MODEL_PATH`` before invoking pytest.
+
+This file is intentionally the only deliverable — the goldens are embedded as a
+Python constant and the ``torchrun`` command line is reproduced here, so the
+upstream launch shell stays untouched and there is no separate JSON file to
+commit.
+
+Invocation (on a 4-GPU node, inside the training container, from the repo
+root)::
+
+    pytest -s tests/launch_regression_test.py --num-gpus=4 --levels=2 -o addopts=
+
+* ``--num-gpus=4 --levels=2`` matches the markers on the test below and lets
+  the conftest's per-test setup pin ``CUDA_VISIBLE_DEVICES=0,1,2,3`` for
+  torchrun. (``4`` is in ``ALL_NUM_GPUS`` in
+  ``cosmos_framework/inference/fixtures/args.py``.)
+* ``-o addopts=`` clears the ``addopts`` line in the repo's ``.pytest.toml``
+  which references ``--suppress-no-test-exit-code`` from the optional
+  ``pytest-custom-exit-code`` plugin (not installed in the training image).
+
+Determinism notes:
+  * ``llava_ov_datapacker`` runs **without** ``--deterministic`` on H100 AND
+    overrides ``model.config.deterministic=false``: the Qwen3-VL text
+    path uses an attention backend whose Hopper FMHA backward kernel has no
+    deterministic mode (raises ``NotImplementedError`` under PyTorch's
+    deterministic context). ``VLMModel.__init__`` honors the config-level
+    flag via ``init_flash_attn_meta`` independently of the launcher arg, so
+    both must be off. It streams ``lmms-lab/LLaVA-OneVision-Data`` from the
+    HuggingFace Hub with ``dataloader_train.num_workers=0`` so the data order is
+    fully deterministic (single process); the only run-to-run noise left is the
+    FMHA backward kernel. iter-0 is bit-exact (forward only) but iters 1+ drift
+    (the Hopper FMHA backward has no deterministic mode — confirmed: forcing
+    ``deterministic=true`` raises ``NotImplementedError``, and a 2-run
+    ``num_workers=0`` check still drifts ≤0.006 on iters 1-9). All 10 iters are
+    asserted with a tiered tolerance (``loss_tol_bands``): iter-0 at
+    1e-3, iters 1-2 at 1e-2, iters 3-9 at 2e-2.
+
+Refreshing the goldens (after an intentional numerical change)::
+
+    COSMOS_REGRESSION_UPDATE_GOLDENS=1 pytest -s launch_regression_test.py ...
+
+That prints the captured series for each spec; copy them into the matching
+``_GOLDENS[<arch>]`` entry below.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import pytest
+
+from cosmos_framework.inference.fixtures.args import MAX_GPUS
+
+THIS_DIR = Path(__file__).resolve().parent
+# ``cosmos_framework.scripts.train`` and the ``--sft-toml=...`` paths are relative to
+# the repo root; we always invoke torchrun from there.
+REPO_ROOT = THIS_DIR.parent
+
+
+def _free_port() -> int:
+    """Return a currently-free TCP port for torchrun's rendezvous, instead of a
+    hardcoded ``master_port`` that ``EADDRINUSE``s when a prior run lingers."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+# --- per-arch input paths ----------------------------------------------------
+#
+# GB200: the original input snapshot lived on an internal read-only filesystem
+# that is not in the OSS layout, so the GB200 path is not runnable here. The
+# GB200 goldens dict is kept as a historical reference; ``_resolve_paths``
+# below skips the GB200 arch instead of re-running it.
+
+
+def _hf_download(args: list[str]) -> str:
+    """``uvx hf download <args> --quiet`` -> the local path it prints (from the HF cache)."""
+    result = subprocess.run(
+        ["uvx", "hf@latest", "download", *args, "--quiet"],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.fail(f"hf download failed for {args} (exit {result.returncode}):\n{result.stdout}\n{result.stderr}")
+    lines = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
+    if not lines:
+        pytest.fail(f"hf download for {args} printed no path:\n{result.stdout}\n{result.stderr}")
+    return lines[-1]
+
+
+def _convert_nano_dcp(dest: Path) -> None:
+    """Convert the Cosmos3-Nano checkpoint to DCP at ``dest`` (Step 2 of docs/training.md)."""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f".:{env.get('PYTHONPATH', '')}"
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cosmos_framework.scripts.convert_model_to_dcp",
+            "-o", str(dest), "--checkpoint-path", "Cosmos3-Nano",
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+    )
+    if result.returncode != 0:
+        pytest.fail(f"convert_model_to_dcp (Cosmos3-Nano) failed with exit code {result.returncode}")
+
+
+def _detect_arch() -> str:
+    """Map ``torch.cuda.get_device_name(0)`` to a goldens key."""
+    import torch  # local import keeps module import side-effects light
+
+    if not torch.cuda.is_available():
+        return "unknown"
+    name = torch.cuda.get_device_name(0).upper()
+    if "GB200" in name:
+        return "gb200"
+    # H200 shares the Hopper kernels with H100 and is treated identically here:
+    # both map to the ``h100`` goldens key (the GitHub GPU CI runs on 8×H200).
+    if "H100" in name or "H200" in name:
+        return "h100"
+    return "unknown"
+
+
+# Pinned revisions mirror tests/_stage_h100_inputs.sh so prepared inputs match
+# the captured h100 goldens.
+_BRIDGE_REVISION = "46468e12ac0dd36901e9e3240d4fc7620942b5d7"
+_QWEN_VL_REVISION = "0c351dd01ed87e9c1b53cbc748cba10e6187ff3b"
+
+
+# Tolerances for ``pytest.approx``. The launch passes ``--deterministic`` and
+# ``PYTHONHASHSEED=42``; the tolerance only absorbs minor noise from
+# non-deterministic NCCL reductions.
+_DEFAULT_RTOL = 1e-3
+_DEFAULT_ATOL = 1e-3
+
+# --- log parsers -------------------------------------------------------------
+#
+# VLM (``pre_exp012_llava_ov_datapacker``) logs the DP-reduced loss on rank 0::
+#
+#     train/loss_avg: 1.32225 (iteration 0)
+#
+# ``GradClip`` emits the global grad-norm via every rank, prefixed with
+# ``[RANK X]``. Key is ``clip_grad_norm/global`` for VLM.
+_VLM_LOSS_RE = re.compile(r"train/loss_avg:\s+([0-9.eE+-]+)\s+\(iteration\s+\d+\)")
+# VFM logs per-rank loss via the IterSpeed callback's on_training_step_end:
+#     [RANK 0] Iteration 1: Hit counter: 1/50 | Loss: 0.2515 | Time: 120.42s
+_VFM_LOSS_RE = re.compile(
+    r"\[RANK\s+0\]\s+Iteration\s+\d+:\s+Hit counter:[^|]+\|\s+Loss:\s+([0-9.eE+-]+)"
+)
+_GRAD_NORM_RE = re.compile(
+    r"\[RANK\s+0\][^\n]*clip_grad_norm/(?:[^/]+/)?global:\s+([0-9.eE+-]+)\s+\(iteration\s+\d+\)"
+)
+
+
+@dataclass(frozen=True)
+class LaunchSpec:
+    """A single launch flow under regression — mirrors the launcher shell."""
+
+    key: str  # goldens key + pytest parametrize id source
+    sft_toml: str  # ``--sft-toml=...`` value, relative to REPO_ROOT
+    extra_hydra_args: tuple[str, ...]
+    loss_re: re.Pattern[str]
+    deterministic_iters: int  # how many leading iters are bit-exact deterministic
+    extra_env: dict[str, str] = field(default_factory=dict)
+    nproc_per_node: int = 4
+    # Some specs can't run under ``--deterministic`` on H100: the Qwen3-VL text
+    # attention's Hopper FMHA backward kernel has no deterministic mode and
+    # raises NotImplementedError. For those specs we drop the flag and accept
+    # the tighter goldens tolerance only on the iters that still reproduce in
+    # practice (see ``deterministic_iters``).
+    deterministic: bool = True
+    # Per-spec goldens tolerance for ``pytest.approx``. Deterministic specs use
+    # the tight default uniformly across all asserted iters.
+    loss_rtol: float = _DEFAULT_RTOL
+    loss_atol: float = _DEFAULT_ATOL
+    # Optional tiered tolerance: each ``(count, rtol, atol)`` applies to the next
+    # ``count`` iters in order, and the counts must sum to ``deterministic_iters``.
+    # Lets the reasoner tighten its bit-exact iter-0 while loosening the
+    # non-deterministic tail. When empty, all iters use ``loss_rtol/loss_atol``.
+    loss_tol_bands: tuple[tuple[int, float, float], ...] = ()
+
+
+# 4-GPU specs run by ``test_launch_regression``; 8-GPU specs run by
+# ``test_launch_regression_8gpu`` (the ``gpus`` marker carries only one value,
+# so the test functions are split).
+_SPEC_KEYS = (
+    "llava_ov_datapacker",
+    "vision_sft_nano",
+)
+_SPEC_KEYS_8GPU = ("vision_sft_super",)
+
+
+def _build_specs(paths: dict[str, str]) -> dict[str, LaunchSpec]:
+    """Build the per-arch ``LaunchSpec`` list using the resolved input paths."""
+    # vision_sft_super needs a Cosmos3-Super DCP; the default staging script
+    # only produces Cosmos3-Nano. If BASE_CHECKPOINT_PATH_SUPER is set,
+    # redirect BASE_CHECKPOINT_PATH for this spec via extra_env.
+    super_extra_env: dict[str, str] = {}
+    if super_ckpt := os.environ.get("BASE_CHECKPOINT_PATH_SUPER"):
+        super_extra_env["BASE_CHECKPOINT_PATH"] = super_ckpt
+
+    return {
+        "llava_ov_datapacker": LaunchSpec(
+            # Replicates launch_sft_llava_ov.sh, capped to 10 iters.
+            key="llava_ov_datapacker",
+            sft_toml="examples/toml/sft_config/llava_ov_datapacker.toml",
+            extra_hydra_args=(
+                # TAIL_OVERRIDES from launch_sft_llava_ov.sh — fields not modeled
+                # by SFTExperimentConfig.
+                f"model.config.policy.backbone.model_name={paths['vlm_model_path']}",
+                "data_setting.max_tokens=16000",
+                # 4-GPU subset for the test (TOML pins dp_shard=8 for the 8-GPU
+                # launch shell).
+                "model.config.parallelism.data_parallel_shard_degree=4",
+                # The Hopper FMHA backward raises under PyTorch
+                # deterministic mode, so both the config default and the
+                # launcher's --deterministic flag must be off (see the
+                # determinism notes in the module docstring).
+                "model.config.deterministic=false",
+                # num_workers=0: fully-ordered single-process streaming, so the
+                # only run-to-run noise is the FMHA backward kernel, not data
+                # order. prefetch_factor/persistent_workers must be unset for
+                # num_workers=0 (torch DataLoader rejects them otherwise).
+                "dataloader_train.num_workers=0",
+                "dataloader_train.prefetch_factor=null",
+                "dataloader_train.persistent_workers=false",
+                # Regression-specific tweaks.
+                "trainer.max_iter=10",
+                "trainer.logging_iter=1",
+                "job.wandb_mode=disabled",
+                "ckpt_type=dummy",
+                "checkpoint.load_from_object_store.enabled=false",
+                "checkpoint.save_to_object_store.enabled=false",
+                "upload_reproducible_setup=false",
+            ),
+            loss_re=_VLM_LOSS_RE,
+            deterministic_iters=10,
+            deterministic=False,
+            # Tiered tolerance: iter-0 is bit-exact (forward only) → 1e-3; iters
+            # 1+ carry the FMHA-backward noise (≤0.006 across two num_workers=0
+            # runs) → 1e-2 for the early iters 1-2, 2e-2 for the tail 3-9.
+            loss_tol_bands=(
+                (1, 1e-3, 1e-3),  # iter 0
+                (2, 1e-2, 1e-2),  # iters 1-2
+                (7, 2e-2, 2e-2),  # iters 3-9
+            ),
+        ),
+        "vision_sft_nano": LaunchSpec(
+            # Replicates launch_sft_vision_nano.sh, capped to 10 iters.
+            # ``DATASET_PATH`` / ``WAN_VAE_PATH`` / ``BASE_CHECKPOINT_PATH`` flow
+            # in via the TOML's ``${oc.env:...}`` interpolation; no Hydra plumbing
+            # needed beyond the regression-cap overrides below.
+            key="vision_sft_nano",
+            sft_toml="examples/toml/sft_config/vision_sft_nano.toml",
+            extra_hydra_args=(
+                "model.config.parallelism.data_parallel_shard_degree=4",
+                "model.config.compile.enabled=true",
+                "trainer.max_iter=10",
+                "trainer.logging_iter=1",
+                "job.wandb_mode=disabled",
+                "upload_reproducible_setup=false",
+                "checkpoint.save_iter=999999",
+            ),
+            loss_re=_VFM_LOSS_RE,
+            deterministic_iters=10,
+        ),
+        "vision_sft_super": LaunchSpec(
+            # Replicates launch_sft_vision_super.sh on 8 GPUs (dp_shard=4 × cp=2),
+            # capped to 10 iters. ``compile.enabled=false`` because the Super
+            # backbone's compile path is not bit-exact across runs on H100.
+            key="vision_sft_super",
+            sft_toml="examples/toml/sft_config/vision_sft_super.toml",
+            nproc_per_node=8,
+            extra_hydra_args=(
+                "model.config.parallelism.data_parallel_shard_degree=4",
+                "model.config.parallelism.context_parallel_shard_degree=2",
+                "model.config.compile.enabled=false",
+                "trainer.max_iter=10",
+                "trainer.logging_iter=1",
+                "job.wandb_mode=disabled",
+                "upload_reproducible_setup=false",
+                "checkpoint.save_iter=999999",
+            ),
+            loss_re=_VFM_LOSS_RE,
+            deterministic_iters=10,
+            extra_env=super_extra_env,
+        ),
+    }
+
+
+# --- helpers -----------------------------------------------------------------
+
+
+def _parse_series(log_text: str, loss_re: re.Pattern[str]) -> tuple[list[float], list[float]]:
+    """Extract per-iteration rank-0 loss and global grad-norm series, in order."""
+    losses = [float(m.group(1)) for m in loss_re.finditer(log_text)]
+    grad_norms = [float(m.group(1)) for m in _GRAD_NORM_RE.finditer(log_text)]
+    assert losses and grad_norms, (
+        f"No loss/grad-norm pairs found in log (losses={len(losses)}, grads={len(grad_norms)})"
+    )
+    assert len(losses) == len(grad_norms), (
+        f"loss vs grad-norm length mismatch ({len(losses)} vs {len(grad_norms)}): "
+        "the log must contain one rank-0 entry of each per training step."
+    )
+    return losses, grad_norms
+
+
+def _run_torchrun(spec: LaunchSpec, run_dir: Path) -> Path:
+    """Invoke the same ``torchrun`` command that the launcher shell runs.
+
+    Returns the path of the captured combined stdout+stderr log.
+    """
+    run_dir.mkdir(parents=True, exist_ok=True)
+    log_file = run_dir / "training.log"
+
+    cmd = [
+        "torchrun",
+        f"--nproc_per_node={spec.nproc_per_node}",
+        f"--master_port={_free_port()}",
+        "-m",
+        "cosmos_framework.scripts.train",
+        f"--sft-toml={spec.sft_toml}",
+    ]
+    if spec.deterministic:
+        cmd.append("--deterministic")
+    cmd += ["--", *spec.extra_hydra_args]
+
+    env = os.environ.copy()
+    # HF env mirrors what the launcher shell sets up; ``HF_TOKEN`` must already
+    # be exported in the caller's environment if the experiment hits gated Hub
+    # endpoints (e.g. the LLaVA-OneVision-Data streaming dataset).
+    env.setdefault("HF_HOME", "/tmp/hf_cache")
+    Path(env["HF_HOME"]).mkdir(parents=True, exist_ok=True)
+    env.setdefault("HF_HUB_DISABLE_XET", "1")
+    env["PYTHONHASHSEED"] = "42"  # must be set before interpreter starts
+    env["PYTHONPATH"] = f".:{env.get('PYTHONPATH', '')}"
+    env["IMAGINAIRE_OUTPUT_ROOT"] = str(run_dir / "output")
+    env.update(spec.extra_env)
+
+    # Tee: stream the torchrun output live to stdout (so CI shows training
+    # progress under ``pytest -s``) while capturing it into the log file.
+    with log_file.open("w") as fp:
+        proc = subprocess.Popen(
+            cmd,
+            env=env,
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            fp.write(line)
+        returncode = proc.wait()
+    if returncode != 0:
+        # Tolerate harmless PyGIL teardown warnings if training did complete.
+        text = log_file.read_text(errors="replace")
+        if "Done with training" not in text:
+            pytest.fail(
+                f"{spec.key}: torchrun failed with exit code {returncode} "
+                "and log does not contain 'Done with training'.\n"
+                f"Log tail:\n{text[-2000:]}"
+            )
+    return log_file
+
+
+# --- fixtures ----------------------------------------------------------------
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _require_4_gpus() -> None:
+    """Skip the whole module unless we can launch 4-GPU training here."""
+    if shutil.which("torchrun") is None:
+        pytest.skip("torchrun not on PATH — must run inside the training container")
+    try:
+        import torch
+    except Exception as exc:  # pragma: no cover — surfaces during dev only
+        pytest.skip(f"torch unavailable ({exc!r})")
+    if not torch.cuda.is_available() or torch.cuda.device_count() < 4:
+        pytest.skip(f"requires 4 visible CUDA devices, found {torch.cuda.device_count()}")
+
+
+@pytest.fixture(scope="module")
+def h100_inputs(tmp_path_factory: pytest.TempPathFactory):
+    """Provide the regression input paths, preparing any not already set in env.
+
+    Mirrors the download/convert steps of ``tests/_stage_h100_inputs.sh`` (it
+    does NOT set up the environment -- ``uv sync`` and the ``transformers``
+    pin still belong to that script / the caller). Honors pre-set env vars (so
+    ``source env.sh`` still works); anything prepared here goes under a temp
+    stage dir that is removed on teardown. The four vars are exported because
+    the SFT TOMLs interpolate ``DATASET_PATH`` / ``WAN_VAE_PATH`` /
+    ``BASE_CHECKPOINT_PATH`` at load time and the VLM spec passes ``MODEL_PATH``
+    as a Hydra backbone override.
+    """
+    arch = _detect_arch()
+    if arch == "gb200":
+        pytest.skip("gb200 inputs not in OSS layout; goldens kept for historical reference only.")
+    if arch != "h100":
+        pytest.skip(f"no regression goldens for GPU arch {arch!r}; only h100 supported")
+    if shutil.which("uvx") is None:
+        pytest.skip("uvx not on PATH -- required to prepare regression inputs")
+
+    stage = tmp_path_factory.mktemp("h100_stage")
+    set_vars: list[str] = []
+
+    def _ensure(var: str, value_fn) -> None:
+        if not os.environ.get(var):
+            os.environ[var] = str(value_fn())
+            set_vars.append(var)
+
+    _ensure(
+        "DATASET_PATH",
+        lambda: Path(
+            _hf_download(
+                ["--repo-type", "dataset", "nvidia/bridge-v2-subset-synthetic-captions",
+                 "--revision", _BRIDGE_REVISION]
+            )
+        ) / "sft_dataset_bridge",
+    )
+    _ensure("WAN_VAE_PATH", lambda: _hf_download(["Wan-AI/Wan2.2-TI2V-5B", "Wan2.2_VAE.pth"]))
+    _ensure("MODEL_PATH", lambda: _hf_download(["Qwen/Qwen3-VL-8B-Instruct", "--revision", _QWEN_VL_REVISION]))
+
+    def _make_dcp() -> Path:
+        dest = stage / "Cosmos3-Nano-DCP"
+        _convert_nano_dcp(dest)
+        return dest
+
+    _ensure("BASE_CHECKPOINT_PATH", _make_dcp)
+
+    try:
+        yield {"vlm_model_path": os.environ["MODEL_PATH"]}
+    finally:
+        for var in set_vars:
+            os.environ.pop(var, None)
+        shutil.rmtree(stage, ignore_errors=True)
+
+
+# --- tests -------------------------------------------------------------------
+
+
+def _assert_spec_matches_goldens(spec_key: str, tmp_path: Path, paths: dict[str, str]) -> None:
+    """Re-run ``spec``'s torchrun command and check loss / grad-norm against goldens."""
+    arch = _detect_arch()
+    spec = _build_specs(paths)[spec_key]
+
+    log_path = _run_torchrun(spec, tmp_path)
+    log_text = log_path.read_text(errors="replace")
+    loss, grad_norm = _parse_series(log_text, spec.loss_re)
+    # The run log also streamed live under ``pytest -s``; include its tail in any
+    # failure message so the run detail is attached to the failure report too.
+    run_detail = f"\n--- {spec.key} run log (last 4000 chars) ---\n{log_text[-4000:]}"
+    assert len(loss) == 10, f"expected 10 iterations, parsed {len(loss)} (loss={loss}){run_detail}"
+
+    # Refresh path: print captured values for manual copy into ``_GOLDENS``.
+    if os.environ.get("COSMOS_REGRESSION_UPDATE_GOLDENS") == "1":
+        print(f"\n# --- goldens for arch={arch!r} key={spec.key!r} ---")
+        print(f'"{spec.key}": {{')
+        print(f'    "loss": {loss},')
+        print(f'    "grad_norm": {grad_norm},')
+        print("},")
+        pytest.skip(
+            f"captured fresh series for arch={arch!r} key={spec.key!r}; copy the printed "
+            f"dict into _GOLDENS[{arch!r}] at the bottom of launch_regression_test.py, "
+            "then rerun without COSMOS_REGRESSION_UPDATE_GOLDENS to assert."
+        )
+
+    arch_goldens = _GOLDENS.get(arch)
+    assert arch_goldens is not None, (
+        f"no goldens table for arch {arch!r}; capture with COSMOS_REGRESSION_UPDATE_GOLDENS=1"
+    )
+    expected = arch_goldens.get(spec.key)
+    assert expected is not None, (
+        f"no goldens for arch={arch!r} key={spec.key!r}; capture with COSMOS_REGRESSION_UPDATE_GOLDENS=1"
+    )
+
+    n = spec.deterministic_iters
+
+    # Build the per-iter tolerance segments: either the spec's tiered bands or a
+    # single uniform band spanning all asserted iters.
+    if spec.loss_tol_bands:
+        assert sum(c for c, _, _ in spec.loss_tol_bands) == n, (
+            f"{spec.key}: loss_tol_bands counts {[c for c, _, _ in spec.loss_tol_bands]} "
+            f"must sum to deterministic_iters={n}"
+        )
+        bands = spec.loss_tol_bands
+    else:
+        bands = ((n, spec.loss_rtol, spec.loss_atol),)
+
+    start = 0
+    for count, rtol, atol in bands:
+        end = start + count
+        assert loss[start:end] == pytest.approx(
+            expected["loss"][start:end], rel=rtol, abs=atol
+        ), (
+            f"{spec.key} ({arch}): rank-0 loss[{start}:{end}] (rel/abs={rtol}) "
+            f"does not match goldens\n"
+            f"  got     : {loss[start:end]}\n"
+            f"  expected: {expected['loss'][start:end]}{run_detail}"
+        )
+        start = end
+    # ``grad_norm`` is optional: ``None`` skips the check when the FSDP
+    # global-norm all-reduce isn't bit-exact on this arch.
+    if expected["grad_norm"] is None:
+        return
+    assert grad_norm[:n] == pytest.approx(
+        expected["grad_norm"][:n], rel=spec.loss_rtol, abs=spec.loss_atol
+    ), (
+        f"{spec.key} ({arch}): global grad-norm[:{n}] does not match goldens\n"
+        f"  got     : {grad_norm[:n]}\n"
+        f"  expected: {expected['grad_norm'][:n]}{run_detail}"
+    )
+
+
+# Define only the test function matching MAX_GPUS — the conftest rejects
+# ``gpus(N)`` markers outside the active ``ALL_NUM_GPUS = (0, 1, MAX_GPUS)``.
+if MAX_GPUS == 4:
+
+    @pytest.mark.level(2)
+    @pytest.mark.gpus(4)
+    @pytest.mark.parametrize("spec_key", _SPEC_KEYS, ids=lambda k: k.removeprefix("launch_"))
+    def test_launch_regression(spec_key: str, tmp_path: Path, h100_inputs: dict[str, str]) -> None:
+        """Re-run ``spec``'s torchrun command and check loss / grad-norm against goldens."""
+        _assert_spec_matches_goldens(spec_key, tmp_path, h100_inputs)
+
+
+if MAX_GPUS == 8:
+
+    @pytest.mark.skip(reason="vision_sft_super spec disabled")
+    @pytest.mark.level(2)
+    @pytest.mark.gpus(8)
+    @pytest.mark.parametrize(
+        "spec_key", _SPEC_KEYS_8GPU, ids=lambda k: k.removeprefix("launch_")
+    )
+    def test_launch_regression_8gpu(spec_key: str, tmp_path: Path, h100_inputs: dict[str, str]) -> None:
+        """8-GPU variant for ``vision_sft_super`` (dp_shard=4 × cp=2)."""
+        _assert_spec_matches_goldens(spec_key, tmp_path, h100_inputs)
+
+
+# Goldens keyed by GPU arch then ``LaunchSpec.key``. Refresh with
+# ``COSMOS_REGRESSION_UPDATE_GOLDENS=1``.
+_GOLDENS: dict[str, dict[str, dict[str, list[float] | None]]] = {
+    # Captured 2026-05-18 on a 4 × NVIDIA GB200 node with ``--deterministic``
+    # and seed 42 against the legacy training pipeline. VLM backbone is not
+    # part of the OSS layout.
+    "gb200": {
+        "llava_ov_datapacker": {
+            "loss": [1.32208, 1.20886, 1.39254, 1.40460, 1.16652, 1.24852, 1.38463, 1.22766, 0.96263, 1.14468],
+            "grad_norm": [
+                38.62454, 23.61477, 30.53218, 36.46255, 25.06240,
+                39.70305, 48.52226, 52.18334, 22.77521, 25.06970,
+            ],
+        },
+    },
+    # Recaptured 2026-06-03 on a 4 × NVIDIA H100 80GB HBM3 node with seed 42 and
+    # transformers==4.57.6. VLM model is ``Qwen/Qwen3-VL-8B-Instruct``; inputs are
+    # prepared in-test by the ``h100_inputs`` fixture (or via
+    # ``tests/_stage_h100_inputs.sh`` if its env vars are pre-set).
+    "h100": {
+        # num_workers=0, deterministic mode off (see the spec's hydra overrides
+        # and the loss_tol_bands tiers). Centered on the midpoint of two H200 CI
+        # runs (CI runs on H200) so the tiered bands keep maximum margin; iter-0
+        # is bit-exact across H100/H200 runs. grad-norm is non-det, so None.
+        "llava_ov_datapacker": {
+            "loss": [1.06924, 0.88399, 1.09293, 1.16314, 1.03592, 0.99041, 1.11041, 0.97001, 0.81246, 0.98548],
+            "grad_norm": None,
+        },
+        # Recaptured 2026-06-03 after the TOML-config rewrite shifted some
+        # defaults. Runs under ``--deterministic`` so loss reproduces bit-exact
+        # across all 10 iters, but grad_norm is non-det because
+        # ``compile.enabled=true`` makes the all-rank reduction not bit-exact
+        # on H100.
+        "vision_sft_nano": {
+            "loss": [0.2272, 0.2181, 0.2028, 0.2306, 0.218, 0.2734, 0.2865, 0.2162, 0.2055, 0.2643],
+            "grad_norm": None,
+        },
+        "vision_sft_super": {
+            "loss": [0.2133, 0.2028, 0.1992, 0.2373, 0.2539, 0.2645, 0.2679, 0.2182, 0.1959, 0.2457],
+            "grad_norm": [0.00403, 0.00255, 0.00412, 0.00485, 0.00305, 0.00331, 0.00375, 0.00371, 0.00313, 0.00276],
+        },
+    },
+}
+
+
+if __name__ == "__main__":  # pragma: no cover — manual driver
+    sys.exit(pytest.main([__file__, "-v", "-s", "-o", "addopts="]))

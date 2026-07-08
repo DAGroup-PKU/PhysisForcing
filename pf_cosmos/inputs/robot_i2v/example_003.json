@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_003",
+  "prompt": "In a sunlit lobby with tall glass windows along the left side, a humanoid robot rotates the chair 180 degrees. The robot stands in the right foreground, slightly crouched with its torso leaning forward, and uses its right hand against the purple upholstered chair’s back/arm area while the chair turns smoothly on its metal swivel base. As the chair rotates, its orientation reverses relative to the nearby round wooden coffee table and the long window-wall shadows cast across the patterned carpet. The robot’s gray-and-white segmented limbs and dark clamp-like hands remain close to the chair as it completes the 180 degrees rotation, with visible cables trailing from the robot’s upper back. In the background, a brick wall and a long wood-paneled ceiling lead toward a hallway on the right, while a few seated people at a table remain still near the windows.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_003.jpg"
+}

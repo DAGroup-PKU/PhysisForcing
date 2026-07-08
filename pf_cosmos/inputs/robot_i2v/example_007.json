@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_007",
+  "prompt": "A humanoid robot in a tan apron stands behind a dark table in a sleek, blue-lit studio space with ribbed wall panels and thin LED lines glowing along the background. It pours wine into a glass by tilting a dark bottle with a white label in its right hand, holding the neck steady as the pale, bubbly liquid rises inside the tall flute. After pouring, the robot places the bottle on the table upright beside the glass, near a small cap resting on the tabletop. It then lifts the glass with its articulated black-and-white fingers, raising it to chest height in a clear toast gesture while its glossy black faceplate remains angled toward the drink.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_007.jpg"
+}

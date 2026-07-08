@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_005",
+  "prompt": "The left robotic gripper uses a black stirring rod to mix the white liquid in the bowl, holding the rod nearly vertical as it reaches down into the center of the bowl. The gripper is attached to a black robotic arm with a silver cylindrical section near the wrist and visible cables, extended from the left side of the table toward the middle. The bowl sits on a clean white tabletop, and the white liquid inside appears smooth and opaque while the rod remains immersed. Behind the bowl, a tall carton with printed labeling stands upright, and on the right side of the table a second robotic gripper rests near a small clear cup that contains a dark utensil. The room around the table has a gray floor and scattered lab furnishings in the distance, with even indoor lighting casting soft shadows of the arm across the tabletop.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_005.jpg"
+}

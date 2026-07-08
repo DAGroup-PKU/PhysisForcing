@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_010",
+  "prompt": "In a busy workspace filled with various items, a white-and-black robotic arm extends from the right with a black two-finger robotic gripper hovering above a wooden table. The detached lid, a round metal piece with a small black knob, is held centered beneath the gripper as it carefully and precisely places the detached lid back onto the stainless steel kettle positioned on the wooden table. The stainless steel kettle sits near the middle of the table with its reflective body and side handle visible, and the gripper lowers the lid straight down until it aligns and settles onto the kettle’s opening. Around the kettle, the tabletop is cluttered with an orange snack box near the left foreground, a red tomato-like object closer to the front edge, and a small bottle lying on its side farther back, while office chairs, desks, and monitors fill the background under bright indoor lighting.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_010.jpg"
+}

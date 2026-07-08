@@ -1,0 +1,9 @@
+{
+  "model_mode": "image2video",
+  "name": "example_006",
+  "prompt": "The robot, operating in a clean, industrial environment, carefully picks up the small brown box from the moving conveyor belt. Its matte dark-gray torso and articulated arms extend from the left, with a glossy black, visor-like head angled down toward the work surface as the right hand lowers over the box. Black segmented fingers curl around the top edges of the small brown box while the left hand remains poised lower over the belt near a crinkled white mailer package. As the conveyor belt continues moving beneath scattered white plastic parcels and metal side rails, the robot lifts the small brown box upward in a controlled motion, keeping it steady above the belt against a backdrop of white panels and stainless hardware.",
+  "num_frames": 189,
+  "fps": 24,
+  "aspect_ratio": "16,9",
+  "vision_path": "images/example_006.jpg"
+}
