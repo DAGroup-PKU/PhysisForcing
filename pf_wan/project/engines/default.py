@@ -5,7 +5,6 @@ from contextlib import ExitStack
 
 import torch
 import torch.nn as nn
-from peft import LoraConfig, get_peft_model, set_peft_model_state_dict
 from safetensors.torch import load_file as safe_load
 
 from project.distributed.fsdp import setup_fsdp
@@ -101,31 +100,6 @@ class DefaultEngine:
 
                 if v.get("requires_grad", None) is not None:
                     model.requires_grad_(v.requires_grad)
-
-                # lora: attach adapter and (optionally) load + merge a LoRA checkpoint.
-                # For inference the config sets ``merge: true`` so the adapter is
-                # folded into the base weights and unloaded before generation.
-                if v.get("lora", None) and v.lora.enabled:
-                    lora_config = v.lora.clone()
-                    lora_config.defrost()
-                    lora_config.pop("enabled")
-                    lora_weight = lora_config.pop("weight", None)
-                    lora_merge = lora_config.pop("merge", False)
-                    lora_cfg = LoraConfig(**lora_config)
-                    model = get_peft_model(model, lora_cfg)
-
-                    if lora_weight is not None:
-                        lora_weight = maybe_download(lora_weight)
-                        logger.info(f"Loading lora from {lora_weight}")
-                        state_dict = torch.load(lora_weight, map_location="cpu", mmap=True)
-                        msg = set_peft_model_state_dict(model, state_dict)
-                        logger.info(f"Loading lora from {lora_weight} with missing keys: {msg.missing_keys}")
-
-                        if lora_merge:  # lora merge should only happen when given weights
-                            model = model.merge_and_unload()
-                            v.lora.defrost()
-                            v.lora.enabled = False
-                            v.lora.freeze()
 
                 # check meta
                 metas = [n for n, b in itertools.chain(model.named_parameters(), model.named_buffers()) if b.is_meta]

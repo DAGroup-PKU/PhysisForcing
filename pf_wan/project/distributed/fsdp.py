@@ -2,7 +2,6 @@ import logging
 from datetime import timedelta
 
 import torch
-from peft.tuners.lora.layer import LoraLayer
 from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.distributed_c10d import _set_pg_timeout
 from torch.distributed.fsdp import CPUOffload
@@ -82,12 +81,8 @@ def setup_fsdp(model, meta_model_cfg, model_cfg):
 @FSDP_WRAP_POLICY_REGISTRY.register()
 def dit_wrap_policy(module, recurse, **kwargs):
     from project.models.backbone.dit import WanAttentionBlock
-    wanmodel_modules_to_wrap = (WanAttentionBlock, LoraLayer)
+    wanmodel_modules_to_wrap = (WanAttentionBlock,)
     if recurse:
-        return True
-    if module.layer_name.endswith(".base_layer") and isinstance(module, torch.nn.Linear):
-        return True
-    if module.layer_name.endswith(".modules_to_save.default"):
         return True
     return isinstance(module, wanmodel_modules_to_wrap)
 
@@ -95,11 +90,7 @@ def dit_wrap_policy(module, recurse, **kwargs):
 @FSDP_WRAP_POLICY_REGISTRY.register()
 def t5_wrap_policy(module, recurse, **kwargs):
     from project.models.text_encoder.t5 import T5SelfAttention
-    t5encoder_modules_to_wrap = (T5SelfAttention, LoraLayer)
+    t5encoder_modules_to_wrap = (T5SelfAttention,)
     if recurse:
-        return True
-    if module.layer_name.endswith(".base_layer") and isinstance(module, torch.nn.Linear):
-        return True
-    if module.layer_name.endswith(".modules_to_save.default"):
         return True
     return isinstance(module, t5encoder_modules_to_wrap)
