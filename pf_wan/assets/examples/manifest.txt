@@ -1,7 +1,13 @@
-The robotic arm grasps a folded cloth, wipes the spill on the table with it, then places the cloth back down@@./assets/examples/images/example_001.jpg
-The robotic arm picks up the red knife and places it into the red case, then grasps the black spoon and drops it into the black container@@./assets/examples/images/example_002.jpg
-The robotic arm grasps the orange cube, lifts it, and places it onto the top of the red cylinder@@./assets/examples/images/example_003.jpg
-The robotic arm grasps the banana, lifts it, and places it onto the plate@@./assets/examples/images/example_004.jpg
-The right robotic arm tilts an orange cup to pour liquid into the gray cup on the coaster, then lifts the orange cup away@@./assets/examples/images/example_005.jpg
-The robotic arm grasps the orange cube, lifts it, and places it on top of the red cylinder@@./assets/examples/images/example_006.jpg
-The dual robotic arms grasp the left and right edges of a towel, lift it up, and bring the edges together to fold the towel in half on the table@@./assets/examples/images/example_007.jpg
+The dual robotic arms cooperate to cut the strip-shaped dough in front of them using a knife@@./assets/examples/images/example_001.jpg
+The humanoid robot closes the door of the fire extinguisher cabinet@@./assets/examples/images/example_002.jpg
+The humanoid robot inserts the book from the table into the file holder@@./assets/examples/images/example_003.jpg
+The robotic gripper opens the lid of the pot and places it on the table@@./assets/examples/images/example_004.jpg
+The robotic gripper use a stainless steel spoon to scoop cereal from the cereal jar into the bowl.@@./assets/examples/images/example_005.jpg
+The robotic gripper places the wooden tray on the wooden table.@@./assets/examples/images/example_006.jpg
+The robotic hand picks up the orange persimmon from the table and place it inside the white box.@@./assets/examples/images/example_007.jpg
+The robotic hand places the tennis ball inside the pink bowl.@@./assets/examples/images/example_008.jpg
+The robotic gripper grasps the orange-yellow toy truck.@@./assets/examples/images/example_009.jpg
+The robotic arms lifts up the yellow corn and the apple from the table.@@./assets/examples/images/example_010.jpg
+The robotic arm prepares to fold the green sweater.@@./assets/examples/images/example_011.jpg
+A humanoid robot performs a short dance, claps its hands, and then bends forward gracefully to bow@@./assets/examples/images/example_012.jpg
+The robotic gripper places the orange from the table into the green cup, then pushes the cup close to the pen holder@@./assets/examples/images/example_013.jpg

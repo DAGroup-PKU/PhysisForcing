@@ -82,7 +82,7 @@ one sample per line:
 - Clip settings come from the config: `num_frames: 81` (must satisfy the VAE constraint
   `4k + 1`), `fps: 16` → ~5 s; resolution capped by `max_area: 307200` (~0.3 MP).
 
-A runnable example manifest (7 samples) is in [`assets/examples/manifest.txt`](assets/examples/manifest.txt).
+A runnable example manifest (13 samples) is in [`assets/examples/manifest.txt`](assets/examples/manifest.txt).
 Point the config at your own manifest to run a larger batch.
 
 ## Citation

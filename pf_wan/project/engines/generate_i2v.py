@@ -112,8 +112,6 @@ class GenerateI2V(DefaultEngine):
         save_seed = None
         for index, (positive_prompt, filename, fn_index) in enumerate(zip(positive_prompts, filenames, indices)):
             self.seed = inference_cfg.seed
-            if inference_cfg.get("shift_seed", True):
-                self.seed = self.seed + index
             self.random = Random(self.seed)
             self.generator = torch.Generator(device=self.device).manual_seed(self.seed)
 
