@@ -69,6 +69,14 @@ fi
 if [[ -n "${EXTRA_DATASET_CHECK:-}" ]]; then eval "$EXTRA_DATASET_CHECK"; fi
 
 cd "$WORKDIR"
+
+# The training DataLoader shells out to ffprobe for video metadata, so make
+# sure a working ffprobe is on PATH (tested by actually running it).
+if ! ffprobe -version >/dev/null 2>&1; then
+    echo "ERROR: ffprobe not found on PATH. Install ffmpeg (it provides ffprobe)." >&2
+    exit 1
+fi
+
 echo ">>> $(date '+%H:%M:%S') WORKDIR:    $WORKDIR"
 echo ">>> $(date '+%H:%M:%S') TOML:       $TOML_FILE"
 [[ -n "${DATASET_PATH:-}" ]]         && echo ">>> $(date '+%H:%M:%S') dataset:    $DATASET_PATH"
@@ -77,6 +85,19 @@ echo ">>> $(date '+%H:%M:%S') log:        $LOG_FILE"
 
 # Default empty if caller didn't set; safe under set -u.
 [[ ${TAIL_OVERRIDES+x} ]] || TAIL_OVERRIDES=()
+
+# Also fold any positional args the wrapper launcher received into
+# TAIL_OVERRIDES, so `bash launch_sft_<recipe>.sh -- key=value ...` works
+# (the wrapper sources this file, so $@ here is the wrapper's $@). A
+# leading `--` is treated as a no-op separator and stripped.
+if (( $# > 0 )); then
+    if [[ "$1" == "--" ]]; then
+        shift
+    fi
+    if (( $# > 0 )); then
+        TAIL_OVERRIDES+=("$@")
+    fi
+fi
 
 TRAILING_ARGS=()
 if (( ${#TAIL_OVERRIDES[@]} > 0 )); then

@@ -230,6 +230,15 @@ class OmniMoTModel(ImaginaireModel):
                     lora_target_modules=self.config.lora_target_modules,
                 )
 
+            # Attach the physics-alignment heads AFTER LoRA injection (so the
+            # "freeze everything non-lora" pass doesn't disable them) but BEFORE
+            # the FSDP wrap (so they shard with the root and are gathered for the
+            # whole net.forward). Re-initialized post-to_empty below.
+            if self._physics_enabled():
+                from cosmos_framework.model.vfm.physics.integration import attach_physics_heads
+
+                attach_physics_heads(net, self.config.physics_alignment, net.hidden_size)
+
         self.install_attention_dispatch(net)
 
         net = parallelize_vfm_network(
@@ -249,8 +258,46 @@ class OmniMoTModel(ImaginaireModel):
                 net.init_weights(buffer_device=DEVICE)
                 if getattr(self.config, "lora_enabled", False):
                     self._init_lora_weights_post_materialization(net)
+                # Re-init the physics heads on real storage and re-assert that
+                # their params are trainable (LoRA froze everything non-lora;
+                # the optimizer's substring allowlist must still see grad=True).
+                if self._physics_enabled():
+                    from cosmos_framework.model.vfm.physics.integration import (
+                        reset_physics_heads,
+                        set_physics_params_trainable,
+                    )
+
+                    reset_physics_heads(net)
+                    set_physics_params_trainable(net)
 
         return net
+
+    # ------------------------------------------------------------------
+    # Physics-alignment auxiliary objectives (i2v). See
+    # cosmos_framework/model/vfm/physics/ for the full design.
+    # ------------------------------------------------------------------
+    def _physics_enabled(self) -> bool:
+        cfg = getattr(self.config, "physics_alignment", None)
+        return cfg is not None and bool(getattr(cfg, "enabled", False))
+
+    def _resolve_physics_block_idx(self, cfg) -> int:
+        """Resolve which MoT decoder layer's hidden state to capture."""
+        n = int(self.net.num_hidden_layers)
+        if cfg.capture_block_idx is not None:
+            idx = int(cfg.capture_block_idx)
+            return idx if idx >= 0 else n + idx
+        return max(0, min(n - 1, round(float(cfg.capture_block_frac) * (n - 1))))
+
+    def _get_physics_teachers(self, cfg, device):
+        """Lazily build + load the frozen teacher holder once, then reuse it."""
+        teachers = getattr(self, "_physics_teachers_cache", None)
+        if teachers is None:
+            from cosmos_framework.model.vfm.physics.integration import build_physics_teachers
+
+            teachers = build_physics_teachers(cfg)
+            self._physics_teachers_cache = teachers
+        teachers.ensure_loaded(device)
+        return teachers
 
     def load_pretrained_model_if_needed(
         self,
@@ -808,13 +855,48 @@ class OmniMoTModel(ImaginaireModel):
 
         # Network forward pass
         memory = self.build_memory_state(packed_sequence, memory_info)  # pylint: disable=assignment-from-none
-        out_net = self.denoise(
-            data_batch_packed=packed_sequence,
-            fps_vision=gen_data_clean.fps_vision,
-            fps_action=gen_data_clean.fps_action,
-            fps_sound=gen_data_clean.fps_sound,
-            memory=memory,
+
+        # Physics-alignment (i2v): capture an intermediate MoT layer's vision
+        # tokens and project them through the trainable ψ/φ heads *inside*
+        # net.forward (so FSDP gathers the head params symmetrically). Only
+        # active when enabled, a vision modality is present, and CP is off
+        # (get_all_seq is unsupported under context-parallel sharding).
+        physics_cfg = getattr(self.config, "physics_alignment", None)
+        physics_on = (
+            self._physics_enabled()
+            and packed_sequence.vision is not None
+            and gen_data_clean.num_vision_items_per_sample is None  # i2v/t2v only (one clip per sample)
+            and (self.parallel_dims is None or self.parallel_dims.cp_size == 1)
         )
+        physics_capturer = None
+        if physics_on:
+            from cosmos_framework.model.vfm.physics.mot_capture import MoTPhysicsCapturer
+
+            physics_capturer = MoTPhysicsCapturer(
+                self.net,
+                self._resolve_physics_block_idx(physics_cfg),
+                packed_sequence.vision,
+                psi_head=getattr(self.net, "physics_psi_head", None),
+                phi_head=getattr(self.net, "physics_phi_head", None),
+            )
+
+        if physics_capturer is not None:
+            with physics_capturer.capture():
+                out_net = self.denoise(
+                    data_batch_packed=packed_sequence,
+                    fps_vision=gen_data_clean.fps_vision,
+                    fps_action=gen_data_clean.fps_action,
+                    fps_sound=gen_data_clean.fps_sound,
+                    memory=memory,
+                )
+        else:
+            out_net = self.denoise(
+                data_batch_packed=packed_sequence,
+                fps_vision=gen_data_clean.fps_vision,
+                fps_action=gen_data_clean.fps_action,
+                fps_sound=gen_data_clean.fps_sound,
+                memory=memory,
+            )
 
         loss, losses_dict = self._compute_losses(
             out_net=out_net,
@@ -825,6 +907,24 @@ class OmniMoTModel(ImaginaireModel):
             timesteps_action=timesteps_action,
             timesteps_sound=timesteps_sound,
         )
+
+        # Add the weighted high-/low-level physics losses (autograd flows back
+        # through the ψ/φ heads into layers 0..capture_block + LoRA adapters).
+        if physics_capturer is not None and gen_data_clean.raw_state_vision is not None:
+            from cosmos_framework.model.vfm.physics.integration import compute_physics_losses
+
+            phys_device = packed_sequence.vision.sequence_indexes.device
+            teachers = self._get_physics_teachers(physics_cfg, phys_device)
+            phys_loss = compute_physics_losses(
+                cfg=physics_cfg,
+                teachers=teachers,
+                psi_proj=physics_capturer.psi_proj,
+                phi_proj=physics_capturer.phi_proj,
+                vision=packed_sequence.vision,
+                raw_state_vision=gen_data_clean.raw_state_vision,
+                device=phys_device,
+            )
+            loss = loss + phys_loss
 
         # Pixel-space video shapes for VAE FLOPs estimation in callbacks (e.g. MFU).
         _vae_pixel_shapes: list[tuple[int, int, int]] = []

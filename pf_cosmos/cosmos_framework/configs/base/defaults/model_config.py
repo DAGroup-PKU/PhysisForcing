@@ -137,6 +137,99 @@ class FixedStepSamplerConfig:
     sample_type: str = "ode"
 
 
+@attrs.define(slots=False)
+class HighLevelPhysicsConfig:
+    """High-level (V-JEPA2 relational) physics-alignment objective.
+
+    A trainable MLP ``ψ`` projects a captured MoT hidden feature into the
+    frozen V-JEPA2 token space; the L1 distance between the student and teacher
+    pairwise cosine-similarity matrices over a set of physics-informative tokens
+    is the loss. See ``cosmos_framework/model/vfm/physics/relational_loss.py``.
+    """
+
+    enabled: bool = False
+    # Weight of L_high in the total training loss.
+    weight: float = 0.5
+    # V-JEPA2 teacher: HF id or local dir. Defaults to the in-repo vendored dir,
+    # overridable via the recipe (e.g. ``${oc.env:VJEPA2_PATH}``).
+    vjepa2_path: str = "facebook/vjepa2-vitl-fpc64-256"
+    # ψ output dim must match the V-JEPA2 hidden size (ViT-L = 1024).
+    target_dim: int = 1024
+    psi_hidden_dim: int = 1024
+    # Override V-JEPA2 clip geometry (None -> read from the encoder config).
+    frames_per_clip: int | None = None
+    crop_size: int | None = None
+    # Physics region focus: restrict the relational loss to CoTracker+depth tokens.
+    use_region_mask: bool = True
+    track_grid_size: int = 25
+    mask_radius: int = 2
+    # Selected-token budget for the relational matrices (fixed across ranks so
+    # the loss shape stays symmetric under FSDP). None -> use all masked tokens.
+    max_K: int | None = 256
+    min_K: int = 2
+    # Relational distance: "l1" (paper), "l2", or "kl".
+    norm: str = "l1"
+    temperature: float = 1.0
+
+
+@attrs.define(slots=False)
+class LowLevelPhysicsConfig:
+    """Low-level (CoTracker3 trajectory) physics-alignment objective.
+
+    A trainable MLP ``φ`` projects the captured MoT hidden feature to a per-frame
+    feature grid; a spatial soft-argmax against CoTracker3 reference trajectories
+    supervises 2D point correspondences. See
+    ``cosmos_framework/model/vfm/physics/trajectory_loss.py``.
+    """
+
+    enabled: bool = False
+    # Weight of L_low in the total training loss.
+    weight: float = 0.5
+    low_dim: int = 128
+    phi_hidden_dim: int = 128
+    track_grid_size: int = 25
+    # Pixel frames the VAE groups into one latent-time step (Wan2.2 VAE = 4).
+    frame_group_size: int = 4
+    # Weight track selection toward the foreground via DepthAnythingV2 depth.
+    use_depth_weighting: bool = True
+
+
+@attrs.define(slots=False)
+class PhysicsAlignmentConfig:
+    """Physics-alignment auxiliary objectives for i2v MoT fine-tuning.
+
+    Three objectives (high-level relational, low-level trajectory, physics
+    region focus); disabled by default, so the stock SFT path is unaffected.
+    See ``cosmos_framework/model/vfm/physics/``.
+    """
+
+    # Master switch. When False nothing is built, attached, or computed.
+    enabled: bool = False
+
+    # Which MoT decoder layer's hidden state to capture (the shared ``H^l`` both
+    # heads project). ``capture_block_idx`` takes precedence; otherwise the layer
+    # is ``round(capture_block_frac * (num_layers - 1))``.
+    capture_block_idx: int | None = None
+    capture_block_frac: float = 0.5
+
+    # Frozen-teacher locations shared by both objectives. Default to in-repo
+    # vendored locations; override per-recipe (e.g. ``${oc.env:COTRACKER_REPO}``).
+    cotracker_repo: str = "checkpoints/physics/co-tracker"
+    depth_weights_dir: str = "checkpoints/physics/depth_anything_v2"
+    depth_encoder: str = "vitl"
+
+    # Optional cap on the CoTracker3 / DepthAnythingV2 input resolution: when set,
+    # the per-sample RGB clip is bilinearly resized to this HEIGHT (aspect ratio
+    # preserved) before tracking. The trajectory loss and region mask are fully
+    # normalized by H,W, so this only trades tracking precision for speed; it does
+    # NOT change the latent grid or V-JEPA2 (which resamples to its own crop).
+    # None = use the native pixel resolution (== the training data resolution).
+    track_input_height: int | None = None
+
+    high_level: HighLevelPhysicsConfig = HighLevelPhysicsConfig()
+    low_level: LowLevelPhysicsConfig = LowLevelPhysicsConfig()
+
+
 # Don't have any defaults and init only in config file.
 @attrs.define(slots=False)
 class OmniMoTModelConfig:
@@ -171,6 +264,14 @@ class OmniMoTModelConfig:
     lora_rank: int = 16
     lora_alpha: int = 32
     lora_target_modules: str = "q_proj_moe_gen,k_proj_moe_gen,v_proj_moe_gen,o_proj_moe_gen"
+
+    # Physics-alignment auxiliary objectives (high-level V-JEPA2 relational,
+    # low-level CoTracker3 trajectory, physics region focus). Disabled by
+    # default; `OmniMoTModel.build_net` attaches the trainable ψ/φ heads after
+    # LoRA injection and `training_step` adds the weighted losses. Pair with
+    # `optimizer.keys_to_select=[..., "physics_"]` and
+    # `checkpoint.keys_to_skip_loading=[..., "physics_"]`.
+    physics_alignment: PhysicsAlignmentConfig = PhysicsAlignmentConfig()
 
     # Rectified flow configs
     rectified_flow_training_config: RectifiedFlowTrainingConfig = RectifiedFlowTrainingConfig()

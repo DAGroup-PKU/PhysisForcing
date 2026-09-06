@@ -65,6 +65,7 @@ PATH_REMAPS: dict[str, dict[tuple[str, ...], "tuple[str, ...] | None"]] = {
         ("model", "lora_rank"): None,
         ("model", "lora_alpha"): None,
         ("model", "lora_target_modules"): None,
+        ("model", "physics_alignment"): None,                                  # VFM-only physics objectives
         ("model", "tokenizer"): None,                                          # blocks model.tokenizer.*
         ("dataloader_train", "seed"): None,
         ("optimizer", "eps"): None,                                            # VLM_OPTIMIZER_KWARGS has no eps field

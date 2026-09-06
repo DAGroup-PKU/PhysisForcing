@@ -58,6 +58,26 @@ uvx hf@latest download Wan-AI/Wan2.2-TI2V-5B Wan2.2_VAE.pth \
 
 </details>
 
+<details><summary><b>Vision SFT — Physics-alignment / PhysisForcing (Cosmos3-Nano)</b></summary>
+
+PhysisForcing on Cosmos3-Nano: LoRA i2v SFT plus the three physics-alignment
+objectives. Quickest setup — grab the pre-converted base, VAE, and teachers in one shot
+(this skips the Step 1 VAE download and the Step 2 conversion):
+
+```shell
+huggingface-cli download DAGroup-PKU/PhysisForcing-assets \
+    --include 'examples/checkpoints/**' 'checkpoints/physics/**' --local-dir .
+```
+
+Alternatively, reuse the **Vision SFT (Cosmos3-Nano)** data + base above and vendor the
+teachers from their public sources with `bash tools/physics/vendor_teacher_assets.sh`.
+
+The objectives live under `[model.physics_alignment]` in
+`examples/toml/sft_config/vision_sft_nano_physics.toml` (both losses default to
+weight 0.1). Disable them to recover the stock nano path.
+
+</details>
+
 <details><summary><b>Vision SFT LoRA (Cosmos3-Super)</b></summary>
 
 LoRA SFT on Qwen3-VL-32B MoT (Cosmos3-Super), on the same Bridge dataset as **Vision SFT (Cosmos3-Nano)**. Step 2 must convert the Cosmos3-Super checkpoint, not Cosmos3-Nano.
@@ -157,6 +177,7 @@ Each launcher's default paths come from the `DATASET_PATH` + `BASE_CHECKPOINT_PA
 | Launch shell                          | Post-Training Task | Default $DATASET_PATH (under examples/data/)             | Default $BASE_CHECKPOINT_PATH (under examples/checkpoints/) |
 | ------------------------------------- | ------------------ | -------------------------------------------------------- | ----------------------------------------------------------- |
 | `launch_sft_vision_nano.sh`           | Generator SFT      | `bridge-v2-subset-synthetic-captions/sft_dataset_bridge` | `Cosmos3-Nano`                                              |
+| `launch_sft_vision_nano_physics.sh`   | Generator SFT + physics | `bridge-v2-subset-synthetic-captions/sft_dataset_bridge` | `Cosmos3-Nano`                                         |
 | `launch_sft_vision_super.sh`          | Generator SFT      | `bridge-v2-subset-synthetic-captions/sft_dataset_bridge` | `Cosmos3-Super`                                             |
 | `launch_sft_llava_ov.sh`              | Reasoner SFT       | (none; dataset streams from HF Hub)                      | (none; backbone fetched at startup)                         |
 | `launch_sft_videophy2_nano.sh`        | Reasoner SFT       | (none; set `VIDEOPHYSICS_ROOT` env)                      | (none; set `VLM_SAFETENSORS_PATH` env)                      |

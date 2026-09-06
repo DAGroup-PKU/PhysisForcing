@@ -286,6 +286,80 @@ class BackboneConfig(BaseModel):
     )
 
 
+class HighLevelPhysicsConfig(BaseModel):
+    """High-level V-JEPA2 relational physics objective. Lands at
+    ``model.config.physics_alignment.high_level.*``."""
+
+    model_config = _PYDANTIC_MODEL_CONFIG
+
+    enabled: bool = Field(default=False, description="Enable the high-level (V-JEPA2 relational) loss.")
+    weight: float = Field(default=0.5, description="Weight of L_high in the total loss.")
+    vjepa2_path: str = Field(
+        default="facebook/vjepa2-vitl-fpc64-256",
+        description="V-JEPA2 teacher: HF id or local dir (e.g. ${oc.env:VJEPA2_PATH}).",
+    )
+    target_dim: int = Field(default=1024, description="ψ output dim; must equal V-JEPA2 hidden size (ViT-L=1024).")
+    psi_hidden_dim: int = Field(default=1024, description="ψ MLP hidden width.")
+    frames_per_clip: int | None = Field(default=None, description="Override V-JEPA2 frames/clip (None=encoder cfg).")
+    crop_size: int | None = Field(default=None, description="Override V-JEPA2 crop size (None=encoder cfg).")
+    use_region_mask: bool = Field(default=True, description="Restrict the loss to physics-informative tokens (M).")
+    track_grid_size: int = Field(default=25, description="CoTracker3 query grid size for the region mask.")
+    mask_radius: int = Field(default=2, description="Pixel dilation radius when rasterizing tracks to the mask.")
+    max_K: int | None = Field(default=256, description="Max selected tokens per sample (fixed for FSDP symmetry).")
+    min_K: int = Field(default=2, description="Min selected tokens (relational matrix needs >=2).")
+    norm: str = Field(default="l1", description="Relational distance: 'l1' (paper), 'l2', or 'kl'.")
+    temperature: float = Field(default=1.0, description="Softmax temperature (only used when norm='kl').")
+
+
+class LowLevelPhysicsConfig(BaseModel):
+    """Low-level CoTracker3 trajectory physics objective. Lands at
+    ``model.config.physics_alignment.low_level.*``."""
+
+    model_config = _PYDANTIC_MODEL_CONFIG
+
+    enabled: bool = Field(default=False, description="Enable the low-level (CoTracker3 trajectory) loss.")
+    weight: float = Field(default=0.5, description="Weight of L_low in the total loss.")
+    low_dim: int = Field(default=128, description="φ output feature dim used for the soft-argmax similarity.")
+    phi_hidden_dim: int = Field(default=128, description="φ MLP hidden width.")
+    track_grid_size: int = Field(default=25, description="CoTracker3 query grid size.")
+    frame_group_size: int = Field(default=4, description="Pixel frames per latent-time step (Wan2.2 VAE=4).")
+    use_depth_weighting: bool = Field(default=True, description="Weight track selection by DepthAnythingV2 depth.")
+
+
+class PhysicsAlignmentConfig(BaseModel):
+    """Physics-alignment auxiliary objectives. Lands at
+    ``model.config.physics_alignment.*`` (VFM only)."""
+
+    model_config = _PYDANTIC_MODEL_CONFIG
+
+    enabled: bool = Field(default=False, description="Master switch for all physics-alignment objectives.")
+    capture_block_idx: int | None = Field(
+        default=None, description="MoT decoder layer to capture (overrides capture_block_frac)."
+    )
+    capture_block_frac: float = Field(
+        default=0.5, description="Fractional capture depth when capture_block_idx is None."
+    )
+    cotracker_repo: str = Field(
+        default="checkpoints/physics/co-tracker",
+        description="Local CoTracker3 torch.hub repo dir (e.g. ${oc.env:COTRACKER_REPO}).",
+    )
+    depth_weights_dir: str = Field(
+        default="checkpoints/physics/depth_anything_v2",
+        description="Dir holding depth_anything_v2_<enc>.pth (e.g. ${oc.env:DEPTH_WEIGHTS_DIR}).",
+    )
+    depth_encoder: str = Field(default="vitl", description="DepthAnythingV2 encoder: vits/vitb/vitl/vitg.")
+    track_input_height: int | None = Field(
+        default=None,
+        description=(
+            "Optional cap on CoTracker3/DepthAnythingV2 input height (aspect-preserved resize). "
+            "The trajectory loss + region mask are H,W-normalized, so this only trades tracking "
+            "precision for speed. None = native data resolution."
+        ),
+    )
+    high_level: HighLevelPhysicsConfig = Field(default_factory=HighLevelPhysicsConfig)
+    low_level: LowLevelPhysicsConfig = Field(default_factory=LowLevelPhysicsConfig)
+
+
 class ModelConfig(BaseModel):
     """Top-level model knobs.
 
@@ -362,6 +436,15 @@ class ModelConfig(BaseModel):
         description=(
             "Comma-separated substrings of param names that get a LoRA "
             "adapter. Defaults target the four MoE-gen projection matrices."
+        ),
+    )
+
+    physics_alignment: PhysicsAlignmentConfig = Field(
+        default_factory=PhysicsAlignmentConfig,
+        description=(
+            "Physics-alignment auxiliary objectives (high-level V-JEPA2 "
+            "relational, low-level CoTracker3 trajectory, physics region "
+            "focus). Disabled by default. Skipped on VLM."
         ),
     )
 

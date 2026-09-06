@@ -1,3 +1,4 @@
+import copy
 import functools
 import itertools
 import logging
@@ -26,6 +27,7 @@ class DefaultEngine:
 
     def __init__(self, config: CfgNode):
         self.config = config
+        self.resume = None
 
     def run(self):
         raise NotImplementedError
@@ -101,29 +103,73 @@ class DefaultEngine:
                 if v.get("requires_grad", None) is not None:
                     model.requires_grad_(v.requires_grad)
 
+                # ema model
+                if v.get("trainable", False) and v.get("ema", None) and v.ema.enabled:
+                    ema_model = copy.deepcopy(model)
+                    ema_model.eval().requires_grad_(False)
+
+                # resume
+                if v.get("trainable", False) and self.resume is not None:
+                    ckpt_path = maybe_download(self.resume["models"][k])
+                    state_dict = torch.load(ckpt_path, map_location="cpu", mmap=True)
+                    msg = model.load_state_dict(state_dict, strict=False)
+                    logger.info(f"Resuming {k} from {ckpt_path} with missing keys: {msg.missing_keys}")
+
+                    if v.get("ema", None) and v.ema.enabled:
+                        ckpt_path = maybe_download(self.resume["models"][f"{k}_ema"])
+                        state_dict = torch.load(ckpt_path, map_location="cpu", mmap=True)
+                        msg = ema_model.load_state_dict(state_dict, strict=False)
+                        logger.info(f"Resuming {k}_ema from {ckpt_path} with missing keys: {msg.missing_keys}")
+
                 # check meta
                 metas = [n for n, b in itertools.chain(model.named_parameters(), model.named_buffers()) if b.is_meta]
                 assert not metas, f"{name} got meta tensor: {metas}"
 
-                # eval mode + wrap forward with the configured no_grad / autocast context
+                # wrap func and setup training
                 if v.get("training_state", None) is not None:
                     model.train(v.training_state)
-
+                
                 for wrap_key in v.get("wrapped_func", ["forward"]):
-                    grad_enabled = v.get("grad_enabled", False)
+                    grad_enabled = v.get("grad_enabled", v.get("trainable", False))
                     autocast_cfg = v.get("autocast", Dataclass(enabled=False))
                     logger.info(f"Wrapping {k}.{wrap_key} with grad_enabled={grad_enabled}, "
                                 f"autocast_enabled={autocast_cfg.enabled}")
                     setattr(model, wrap_key, context_wrapper(grad_enabled=grad_enabled, autocast_cfg=autocast_cfg)(
                         common.get_attribute(model, wrap_key)))
 
+                    if v.get("trainable", False) and v.get("ema", None) and v.ema.enabled:
+                        logger.info(f"Wrapping {k}_ema.{wrap_key} with grad_enabled=False, "
+                                    f"autocast_enabled={autocast_cfg.enabled}")
+                        setattr(ema_model, wrap_key, context_wrapper(grad_enabled=False, autocast_cfg=autocast_cfg)(
+                            common.get_attribute(model, wrap_key)))
+
+                # gradient checkpointing
+                def set_gradient_checkpointing(module):
+                    if hasattr(module, "gradient_checkpointing"):
+                        module.gradient_checkpointing = True
+                if config.get("gradient_checkpointing", True):
+                    model.apply(set_gradient_checkpointing)
+
+                if hasattr(model, "enable_gradient_checkpointing") and config.get("gradient_checkpointing", True):  # diffusers
+                    model.enable_gradient_checkpointing()
+                elif hasattr(model, "gradient_checkpointing_enable") and config.get("gradient_checkpointing", True):  # transformers
+                    model.gradient_checkpointing_enable({"use_reentrant": False})
+
                 # move to gpu
                 setattr(model, "weight_dtype", common.to_torch_dtype(v.weight_dtype))
                 if v.get("fsdp", None) is not None and v.fsdp.enabled:
                     annotate_layer_name(model, k)
                     model = setup_fsdp(model, meta_model_cfg, v)
+                    if v.get("trainable", False) and v.get("ema", None) and v.ema.enabled:
+                        annotate_layer_name(ema_model, f"{k}_ema")
+                        ema_model = setup_fsdp(ema_model, meta_model_cfg, v)
                 else:
                     model.to(device=comm.get_device(), dtype=common.to_torch_dtype(v.weight_dtype))
+                    if v.get("trainable", False) and v.get("ema", None) and v.ema.enabled:
+                        ema_model.to(device=comm.get_device(), dtype=common.to_torch_dtype(v.weight_dtype))
 
             setattr(self, k, model)
             logger.info(f"Building {k} done")
+            if v.get("trainable", False) and v.get("ema", None) and v.ema.enabled:
+                setattr(self, f"{k}_ema", ema_model)
+                logger.info(f"Building {k}_ema done")

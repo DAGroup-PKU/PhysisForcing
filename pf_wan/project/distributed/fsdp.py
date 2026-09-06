@@ -52,6 +52,13 @@ def setup_fsdp(model, meta_model_cfg, model_cfg):
     logger.info(f"before FSDP, {model_cfg._class_name} with total params: {params:.1f}M, "
                 f"trainable params: {trainable_params:.1f}M")
 
+    # FSDP flattens each wrapped unit into a single FlatParam that requires a
+    # uniform dtype; align every parameter to weight_dtype before wrapping.
+    param_dtype = common.to_torch_dtype(model_cfg.weight_dtype)
+    for p in model.parameters():
+        if p.is_floating_point() and p.dtype != param_dtype:
+            p.data = p.data.to(param_dtype)
+
     model = FSDP(
         module=model,
         sharding_strategy=ShardingStrategy[sharding_strategy],

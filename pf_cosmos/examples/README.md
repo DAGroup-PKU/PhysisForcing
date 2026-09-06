@@ -13,6 +13,7 @@ This directory contains:
 | Recipe                                       | Launch shell                          |
 | -------------------------------------------- | ------------------------------------- |
 | Vision SFT (Cosmos3-Nano)                    | `launch_sft_vision_nano.sh`           |
+| Vision SFT + Physics (Cosmos3-Nano)          | `launch_sft_vision_nano_physics.sh`   |
 | Vision SFT LoRA (Cosmos3-Super)              | `launch_sft_vision_super.sh`          |
 | Reasoner Alignment SFT                       | `launch_sft_llava_ov.sh`              |
 | Reasoner Alignment SFT (Cosmos3-Nano)        | `launch_sft_videophy2_nano.sh`        |

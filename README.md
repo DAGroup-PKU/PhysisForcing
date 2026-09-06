@@ -25,19 +25,21 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 <p align="center"><img src="assets/teaser.png" width="100%"/></p>
 
-**PhysisForcing** is a **training-time, plug-and-play** framework that makes robotic video generation **physically plausible**. It focuses supervision on interaction-critical regions and aligns generation at two levels — a **pixel-level trajectory** loss and a **semantic-level relational** loss — on an intermediate DiT feature, dropping into existing video backbones (Wan, Cosmos) with **zero extra inference cost**. It ranks **first on R-Bench, PAI-Bench, and EZS-Bench**, and as a world model lifts the **WorldArena-action planner** closed-loop success rate from **16.0% → 24.0%**.
+**PhysisForcing** is a **training-time, plug-and-play** framework that makes robotic video generation **physically plausible**. It focuses supervision on physics-informative regions and aligns generation at two levels — a **pixel-level trajectory** loss and a **semantic-level relational** loss — on an intermediate DiT feature, dropping into existing video backbones (Wan, Cosmos) with **zero extra inference cost**. It ranks **first on R-Bench, PAI-Bench, and EZS-Bench**, and as a world model lifts the **WorldArena-action planner** closed-loop success rate from **16.0% → 24.0%**.
 
 `PF_Cosmos` = Cosmos3-Nano + PhysisForcing&nbsp;&nbsp;|&nbsp;&nbsp;`PF_Wan` = Wan + PhysisForcing
 
 
 ## 🔥 News
-- `[2026.07.08]` 🎉 We release the **inference code & model weights** for **PF_Cosmos** and **PF_Wan**! Training code will be open-sourced **within a week**.
+- `[2026.09.07]` 🎉 We release the **training code** for **PF_Wan** (full fine-tuning) and **PF_Cosmos** (LoRA)!
+- `[2026.07.08]` 🎉 We release the **inference code & model weights** for **PF_Cosmos** and **PF_Wan**!
 - `[2026.06.29]` 🔥 We release the **[arXiv paper](https://arxiv.org/abs/2606.28128)** and **[project page](https://dagroup-pku.github.io/PhysisForcing.github.io/)** of PhysisForcing.
 
 ## 📑 Todo List
 
 - [x] Inference code & checkpoints for **PF_Wan** & **PF_Cosmos**
-- [ ] Training code & auxiliary model checkpoints
+- [x] Training code for **PF_Wan** & **PF_Cosmos**
+- [ ] Auxiliary teacher checkpoints
 
 ## 🎥 Demo
 
@@ -121,8 +123,8 @@ Full per-metric tables and ablations are in the [paper](https://arxiv.org/abs/26
 
 ## ⚙️ Usage
 
-This repo hosts two **self-contained** inference bundles — each ships its own framework
-code, environment, weights, and example inputs. Pick the one you need and follow its README:
+This repo hosts two **self-contained** bundles (inference + training) — each ships its own
+framework code, environment, weights, and example inputs. Pick the one you need and follow its README:
 
 - **[`pf_cosmos/`](pf_cosmos/README.md)** — `PF_Cosmos` (Cosmos3-Nano + PhysisForcing), image-to-video.
 - **[`pf_wan/`](pf_wan/README.md)** — `PF_Wan` (Wan2.2-A14B + PhysisForcing), image-to-video.
@@ -135,7 +137,7 @@ cd PhysisForcing/pf_cosmos   # or: cd PhysisForcing/pf_wan
 
 The two bundles use different PyTorch/CUDA stacks, so set each up in its own environment.
 
-> 🚧 Training code & auxiliary checkpoints: **coming soon.**
+> 🧪 Training: each bundle's README has a **Training** section — full fine-tuning for `pf_wan`, LoRA for `pf_cosmos`.
 
 ## 🙏 Acknowledgement
 

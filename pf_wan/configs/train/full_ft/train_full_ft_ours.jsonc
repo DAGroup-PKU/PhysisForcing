@@ -1,0 +1,198 @@
+{
+    "engine": "DiffusionFinetuning",
+    "output_dir": "runs/",
+    "save_dir": "outputs",
+    "exp_name": "pf_wan_full_ft_ours",
+    "proj_name": "ours_full_ft_high_noise",
+    "save_interval": 1000,
+    "log_interval": 1,
+    "data": {
+        "name": "VideoI18NParquetDataset",
+        // One clip per CSV row; the video-path/caption columns are named by
+        // tos_url_key / text_key below. A tiny runnable example ships under
+        // examples/data/robvid_example/ (replace with your own dataset).
+        "paths": [
+            "examples/data/robvid_example/metadata.csv"
+        ],
+        "tos_url_key": "video_path",
+        "text_key": "short_caption",
+        "window_size": 120,
+        "aspect_ratio_buckets": [
+            [480, 640]
+        ],
+        "seed": 0,
+        "batch_size": 1,
+        "num_workers": 8,
+        "prefetch_factor": 4,
+        "max_frames": 81,  // 1+20*4
+        "stride": 2,
+        // If the stride-decimated sequence is still longer than ``max_frames``,
+        // sample exactly ``max_frames`` indices uniformly across the WHOLE clip
+        // (covers the entire video). Shorter clips fall back to the original
+        // random-window + 4n+1 logic. See project/data/video_i18n.py::_sampling.
+        "uniform_sampling": true
+    },
+    "training": {
+        "seed": 0,
+        "dropout": 0.1,
+        "steps": 1000000,
+        "clip_grad_norm": 1.0,
+        "loss_type": "v_lerp",
+        "accum_steps": 1,
+        // ``low_level_head`` and ``physics_head`` are appended
+        // automatically by the engine when their respective losses
+        // are enabled, so listing them here is optional.
+        "step_models": ["backbone"],
+        // Low-level physics alignment L^{phy}_{low} (paper Sec. 3.2).
+        // Both heads tap the SAME hidden feature H^l from the DiT
+        // block at ``dit_block_idx`` (default 20, shared with the
+        // high-level head). The refiner phi is a lightweight MLP.
+        "low_level_loss": {
+            "enabled": true,
+            "low_level_weight": 0.1,
+            "dit_dim": 5120,
+            "low_dim": 128,
+            "phi_hidden_dim": 128,
+            "dit_block_idx": 20,
+            "optimizer": {
+                "lr": 1e-4,
+                "betas": [0.9, 0.999],
+                "weight_decay": 0.01,
+                "fused": true
+            }
+        },
+        // High-level physics alignment L^{phy}_{high} (paper Sec. 3.3)
+        "high_level_loss": {
+            "enabled": true,
+            "high_level_weight": 0.1,
+            "model_name_or_path": "./weights/vjepa2-vitl-fpc64-256",
+            "frames_per_clip": null,
+            "crop_size": null,
+            // Hidden dim of the DiT
+            "dit_dim": 5120,
+            "target_dim": 1024,
+            "psi_hidden_dim": 1024,
+            "dit_block_idx": 20,
+            "use_region_mask": true,
+            "track_grid_size": 25,
+            "mask_radius": 2,
+            "max_K": 512,
+            "min_K": 2,
+            // "l1" reproduces equation (12)exactly. Alternatives kept
+            // for ablations.
+            "norm": "l1",
+            "temperature": 1.0,
+            "optimizer": {
+                "lr": 1e-4,
+                "betas": [0.9, 0.999],
+                "weight_decay": 0.01,
+                "fused": true
+            }
+        }
+    },
+    "diffusion": {
+        "T": 1000,  // discrete
+        "training_timestep": {
+            "_class_name": "WanFlowMatchTrainingTimesteps",
+            "shift": 5.0,
+            "num_steps": 1000,
+            "denoising_strength": 1.0
+        },
+        "schedule": {
+            "_class_name": "LinearInterpolationSchedule",
+            "pred_type": "v_lerp"
+        },
+        "sampler": {
+            "_class_name": "EulerSampler"
+        }
+    },
+    "meta_model": {
+        "_class_name": "Wan2_1_I2V",
+        "hybrid_gpu_num": 8,
+        "ulysses_size": 1,
+        "fsdp": {
+            "reduce_dtype": "float32",
+            "buffer_dtype": "float32",
+            "sync_module_states": true,
+            "cpu_offload": false,
+            "sharding_strategy": "HYBRID_SHARD",
+            "use_orig_params": false,
+            "auto_wrap_policy": null
+        },
+        "backbone": {
+            "_class_name": "WanModel",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/dit.jsonc"
+            },
+            "weight": "./weights/Wan2.2-I2V-A14B/high_noise_model/high_noise_model.pth",
+            "weight_dtype": "bfloat16",
+            "training_state": true,
+            "requires_grad": true,
+            "grad_enabled": true,
+            "trainable": true,
+            "ema": {
+                "enabled": false,
+                "decay": 0.9999
+            },
+            "optimizer": {
+                "lr": 1e-5,
+                "betas": [0.9, 0.999],
+                "weight_decay": 0.01,
+                "fused": true
+            },
+            "fsdp": {
+                "enabled": true,
+                "auto_wrap_policy": "dit_wrap_policy"
+            },
+            "autocast": {
+                "enabled": true,
+                "dtype": "bfloat16"
+            }
+        },
+        "text_encoder": {
+            "_class_name": "T5Encoder",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/t5_model.jsonc"
+            },
+            "weight": "./weights/Wan2.2-I2V-A14B/models_t5_umt5-xxl-enc-bf16.pth",
+            "weight_dtype": "bfloat16",
+            "training_state": false,
+            "requires_grad": false,
+            "grad_enabled": false,
+            "trainable": false,
+            "fsdp": {
+                "enabled": true,
+                "auto_wrap_policy": "t5_wrap_policy"
+            }
+        },
+        "tokenizer": {
+            "_class_name": "HuggingfaceTokenizer",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/t5_tokenizer.jsonc"
+            },
+            "override_list": [
+                "config.name", "./weights/Wan2.2-I2V-A14B/google/umt5-xxl"
+            ]
+        },
+        "vae": {
+            "_class_name": "WanVAE",
+            "config": {
+                "__inherit__": "configs/meta_model/wan2.1_i2v_14b/vae.jsonc"
+            },
+            "weight": "./weights/Wan2.2-I2V-A14B/Wan2.1_VAE.pth",
+            "weight_dtype": "float32",
+            "training_state": false,
+            "requires_grad": false,
+            "grad_enabled": false,
+            "trainable": false,
+            "wrapped_func": [
+                "encode",
+                "decode"
+            ],
+            "autocast": {
+                "enabled": true,
+                "dtype": "float32"
+            }
+        }
+    }
+}

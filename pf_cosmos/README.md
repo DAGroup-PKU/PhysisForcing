@@ -5,14 +5,16 @@ Image-to-video (I2V) robot world model — the Cosmos3-Nano model from **PhysisF
 Given a first frame and a prompt describing the motion, it generates a short video
 that continues from that frame.
 
-Self-contained inference bundle: framework code + weights + example inputs.
+Self-contained bundle: inference + training code (LoRA + physics), plus example inputs.
 
 ```
 .
-├── cosmos_framework/        # inference code (built on NVIDIA/cosmos-framework)
+├── cosmos_framework/        # framework code (NVIDIA/cosmos-framework) + physics/ (training)
 ├── checkpoints/PF_Cosmos/   # weights (safetensors) + VAE + config
-├── inputs/robot_i2v/        # example inputs (JSON) + conditioning images
-└── docs/                    # framework docs (setup, inference, ...)
+├── examples/                # training launchers + TOML recipes + tiny example dataset
+├── tools/physics/           # vendor frozen teacher checkpoints
+├── inputs/robot_i2v/        # example inference inputs (JSON) + conditioning images
+└── docs/                    # framework docs (setup, inference, training, ...)
 ```
 
 ## 1. Environment
@@ -82,6 +84,30 @@ torchrun --nproc-per-node=8 --master-port=50055 \
 - `vision_path` resolves relative to the JSON file's own directory.
 - `num_frames` must satisfy the VAE constraint `4k + 1` (e.g. 189, 193).
 - `aspect_ratio` is `"W,H"`.
+
+## 5. Training
+
+LoRA fine-tuning of Cosmos3-Nano with two physics-alignment losses (pixel-level
+trajectory + semantic-level relational). Full walkthrough in [`docs/training.md`](docs/training.md); the essentials:
+
+Fetch the base checkpoint, VAE, and teachers (one repo):
+
+```shell
+huggingface-cli download DAGroup-PKU/PhysisForcing-assets \
+    --include 'examples/checkpoints/**' 'checkpoints/physics/**' --local-dir .
+```
+
+This lands in the launcher's default paths. A tiny example dataset ships under
+`examples/data/`; see [`docs/training.md`](docs/training.md) for the full dataset and base conversion.
+
+From the repository root (8 GPUs by default):
+
+```shell
+bash examples/launch_sft_vision_nano_physics.sh   # PhysisForcing (LoRA + physics)
+```
+
+- Override the default data/checkpoint paths with `DATASET_PATH` / `BASE_CHECKPOINT_PATH`.
+- Checkpoints and logs land under `outputs/`; export to safetensors per [`docs/training.md`](docs/training.md).
 
 ## Citation
 

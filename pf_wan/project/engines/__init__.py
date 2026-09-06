@@ -4,3 +4,4 @@ ENGINE_REGISTRY = Registry("ENGINE")
 
 from .default import DefaultEngine
 from .generate_i2v import GenerateI2V
+from .diffusion_finetuning import DiffusionFinetuning

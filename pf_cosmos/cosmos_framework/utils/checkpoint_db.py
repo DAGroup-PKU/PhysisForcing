@@ -53,7 +53,9 @@ import functools
 import json
 import os
 import shlex
+import shutil
 import subprocess
+import sys
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -146,13 +148,36 @@ def _hf_download(cmd_args: list[str]) -> str:
     version is very old and not robust.
     """
     is_rank0 = os.environ.get("RANK", "0") == "0"
-    cmd = [
-        "uvx",
-        f"hf@{HF_VERSION}",
-        "download",
-        "--format=json",
-        *cmd_args,
-    ]
+    # Prefer the `hf` (or huggingface-cli) shipped alongside the running Python,
+    # then fall back to PATH. The `uvx hf@<ver>` route pulls a standalone `hf`
+    # package whose bundled httpx can be incompatible with some proxy setups.
+    # Set COSMOS_FORCE_UVX_HF=1 to opt back into the uvx behavior.
+    force_uvx = os.environ.get("COSMOS_FORCE_UVX_HF", "0") == "1"
+    system_hf: str | None = None
+    if not force_uvx:
+        py_bindir = os.path.dirname(sys.executable)
+        for name in ("hf", "huggingface-cli"):
+            candidate = os.path.join(py_bindir, name)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                system_hf = candidate
+                break
+        if system_hf is None:
+            system_hf = shutil.which("hf") or shutil.which("huggingface-cli")
+    # The standalone `hf` 1.x package supports `--format=json`; older versions
+    # shipped with `huggingface_hub` (e.g. 0.36) do not and print the local path
+    # as plain text instead.
+    using_legacy_cli = False
+    if system_hf is not None:
+        using_legacy_cli = True
+        cmd = [system_hf, "download", *cmd_args]
+    else:
+        cmd = [
+            "uvx",
+            f"hf@{HF_VERSION}",
+            "download",
+            "--format=json",
+            *cmd_args,
+        ]
     log.info(f"{shlex.join(cmd)}")
     output = subprocess.run(
         cmd,
@@ -161,6 +186,12 @@ def _hf_download(cmd_args: list[str]) -> str:
         text=True,
         check=True,
     )
+    if using_legacy_cli:
+        # Last non-empty line of stdout is the local path.
+        lines = [ln for ln in output.stdout.splitlines() if ln.strip()]
+        if not lines:
+            raise RuntimeError(f"hf download produced no output: {output.stdout!r}")
+        return lines[-1].strip()
     return json.loads(output.stdout)["path"]
 
 

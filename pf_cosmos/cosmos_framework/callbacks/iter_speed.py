@@ -73,7 +73,8 @@ class IterSpeed(EveryN):
         iter_speed = (cur_time - self.time) / self.every_n / self.step_size
 
         log.info(
-            f"{iteration} : iter_speed {iter_speed:.2f} seconds per iteration | Loss: {loss.detach().item():.4f}",
+            f"{iteration} : iter_speed {iter_speed:.2f} seconds per iteration | "
+            f"Loss: {loss.detach().item():.4f}",
             rank0_only=False,
         )
 

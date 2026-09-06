@@ -1,0 +1,128 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: OpenMDW-1.1
+
+# vision_sft_nano_physics — LoRA i2v SFT on Cosmos3-Nano + physics-alignment.
+#
+# LoRA on the gen expert (base frozen) plus the three physics objectives under
+# [model.physics_alignment]:
+#   * high-level : V-JEPA2 relational alignment (ψ head + frozen V-JEPA2)
+#   * low-level  : CoTracker3 trajectory alignment (φ head + frozen CoTracker3)
+#   * region focus: CoTracker3 + DepthAnythingV2 token mask M
+# The optimizer trains "lora_" + "physics_"; both are fresh-init (skipped when
+# loading the base checkpoint).
+#
+# Vendor the frozen teachers once before launching (from the repo root):
+#   bash tools/physics/vendor_teacher_assets.sh
+
+[job]
+task         = "vfm"
+experiment   = "vision_sft_nano"
+project      = "cosmos3"
+group        = "sft"
+name         = "vision_sft_nano_physics"
+wandb_mode   = "disabled"
+
+[model]
+max_num_tokens_after_packing = 45056
+joint_attn_implementation    = "two_way"
+precision                    = "bfloat16"
+# LoRA on the gen expert's attention projections (base stays frozen).
+lora_enabled                 = true
+lora_rank                    = 16
+lora_alpha                   = 32
+lora_target_modules          = "q_proj_moe_gen,k_proj_moe_gen,v_proj_moe_gen,o_proj_moe_gen"
+
+# --- Physics-alignment objectives (VFM-only) ---
+[model.physics_alignment]
+enabled            = true
+# Capture the shared hidden feature H^l at ~mid-depth of the MoT decoder.
+# Set capture_block_idx to pin an explicit layer instead.
+capture_block_frac = 0.5
+# Frozen teachers (repo-relative; populated by tools/physics/vendor_teacher_assets.sh).
+cotracker_repo     = "checkpoints/physics/co-tracker"
+depth_weights_dir  = "checkpoints/physics/depth_anything_v2"
+depth_encoder      = "vitl"
+
+[model.physics_alignment.high_level]
+enabled         = true
+weight          = 0.1
+vjepa2_path     = "checkpoints/physics/vjepa2-vitl-fpc64-256"
+target_dim      = 1024     # V-JEPA2 ViT-L hidden size
+psi_hidden_dim  = 1024
+use_region_mask = true
+track_grid_size = 25
+mask_radius     = 2
+max_K           = 256      # fixed selected-token budget
+min_K           = 2
+norm            = "l1"
+
+[model.physics_alignment.low_level]
+enabled             = true
+weight              = 0.1
+low_dim             = 128
+phi_hidden_dim      = 128
+track_grid_size     = 25
+frame_group_size    = 4    # Wan2.2 VAE temporal compression
+use_depth_weighting = true
+
+[model.ema]
+enabled         = false
+rate            = 0.1
+iteration_shift = 0
+
+[model.parallelism]
+data_parallel_shard_degree      = -1
+data_parallel_replicate_degree  = 1
+
+[model.compile]
+enabled                         = false
+compile_dynamic                 = true
+
+[model.activation_checkpointing]
+mode                = "full"
+save_ops_regex      = ["fmha"]
+preserve_rng_state  = true
+determinism_check   = "default"
+
+[model.tokenizer]
+vae_path = "${oc.env:WAN_VAE_PATH}"
+
+[optimizer]
+betas          = [0.9, 0.95]
+eps            = 1.0e-6
+fused          = true
+# Train LoRA adapters AND the physics ψ/φ heads; base stays frozen.
+keys_to_select = ["lora_", "physics_"]
+lr             = 5.0e-4
+weight_decay   = 0
+
+[scheduler]
+cycle_lengths      = [1000]
+f_max              = [1.0]
+f_min              = [0.0]
+f_start            = [0.0]
+verbosity_interval = 0
+warm_up_steps      = [50]
+
+[trainer]
+distributed_parallelism = "fsdp"
+grad_accum_iter         = 2
+logging_iter            = 1
+max_iter                = 500
+
+[trainer.callbacks.compile_tokenizer]
+compile_after_iterations = 3
+enabled                  = false
+
+[trainer.callbacks.grad_clip]
+clip_norm    = 0.1
+force_finite = true
+
+[checkpoint]
+# Skip net_ema (off), lora_ and physics_ (no such tensors in the base ckpt — fresh init).
+keys_to_skip_loading = ["net_ema.", "lora_", "physics_"]
+load_path            = "${oc.env:BASE_CHECKPOINT_PATH}"
+save_iter            = 100
+
+[dataloader_train]
+max_sequence_length = 45056

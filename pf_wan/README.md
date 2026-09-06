@@ -5,15 +5,16 @@ Image-to-video (I2V) robot world model — the Wan2.2-A14B model from **PhysisFo
 Given a first frame and a prompt describing the motion, it generates a short video
 that continues from that frame.
 
-Self-contained inference bundle: framework code + weights + example inputs.
+Self-contained bundle: inference + full-fine-tuning training code, plus example inputs.
 
 ```
 .
-├── project/            # inference code (DiT / VAE / T5, samplers, FSDP + Ulysses)
-├── configs/            # inference config (generate/) + architecture configs (meta_model/)
-├── tools/              # main.py entrypoint + infer_1node.sh launcher
+├── project/            # framework code (DiT / VAE / T5, samplers, FSDP + Ulysses, training engine + data)
+├── configs/            # generate/ (inference) + train/full_ft/ (training) + meta_model/ (architecture)
+├── tools/              # main.py entrypoint + infer_1node.sh / launch_1node.sh launchers
 ├── checkpoints/PF_Wan/ # weights: backbone (.pth) + T5 + VAE + tokenizer
-└── assets/examples/    # example manifest (prompt@@image) + conditioning images
+├── examples/data/      # tiny example training dataset (CSV manifest + clips)
+└── assets/examples/    # example inference manifest (prompt@@image) + conditioning images
 ```
 
 ## 1. Environment
@@ -84,6 +85,42 @@ one sample per line:
 
 A runnable example manifest (13 samples) is in [`assets/examples/manifest.txt`](assets/examples/manifest.txt).
 Point the config at your own manifest to run a larger batch.
+
+## 5. Training (full fine-tuning)
+
+Fine-tunes the base Wan2.2-I2V-A14B DiT with two auxiliary physics-alignment
+losses (pixel-level trajectory + semantic-level relational). The open-source
+recipe is **full fine-tuning** (no LoRA).
+
+Training needs the base model plus three frozen teachers under `./weights/`
+(symlink if they live elsewhere):
+
+```
+weights/
+├── Wan2.2-I2V-A14B/        # base DiT (high_noise_model/) + T5 + VAE + tokenizer
+├── vjepa2-vitl-fpc64-256/  # high-level relational teacher (V-JEPA2)
+├── depth_anything_v2/      # depth_anything_v2_vitl.pth (track depth weighting)
+└── cotracker/              # hubconf.py + weights/scaled_offline.pth (low-level trajectory teacher)
+```
+
+All weights (base + the three teachers) live in one repo; fetch them from the repository root:
+
+```shell
+huggingface-cli download DAGroup-PKU/PhysisForcing-assets --include 'weights/**' --local-dir .
+```
+
+This reproduces the `weights/` layout above (override CoTracker via `COTRACKER3_CKPT`).
+
+From the repository root (8 GPUs by default):
+
+```shell
+bash tools/launch_1node.sh
+# equivalent to:
+bash tools/launch_1node.sh configs/train/full_ft/train_full_ft_ours.jsonc 8 29500
+```
+
+- Point `data.paths` at your own CSV (one clip per row); see [`examples/data/robvid_example/`](examples/data/robvid_example/) for the schema.
+- Checkpoints and logs land under `outputs/`.
 
 ## Citation
 
