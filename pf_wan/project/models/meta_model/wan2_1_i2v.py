@@ -504,8 +504,7 @@ class Wan2_1_I2V:
 
 
     def track_loss(self, video, input_feature, visualize=False, use_depth_weighting=True):
-        """Low-level trajectory alignment loss L^{phy}_{low} (Embodied
-        Forcing, Sec. 3.2; eq. 5-8).
+        """Low-level trajectory alignment loss L^{phy}_{low} (PhysisForcing, Sec. 3.2; eq. 5-8).
 
         Parameters
         ----------
