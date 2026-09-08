@@ -31,7 +31,7 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 
 ## 🔥 News
-- `[2026.09.07]` 🎉 We release the **training code** for **PF_Wan** (full fine-tuning) and **PF_Cosmos** (LoRA)!
+- `[2026.09.07]` 🎉 We release the **training code** for **PF_Wan** and **PF_Cosmos**!
 - `[2026.07.08]` 🎉 We release the **inference code & model weights** for **PF_Cosmos** and **PF_Wan**!
 - `[2026.06.29]` 🔥 We release the **[arXiv paper](https://arxiv.org/abs/2606.28128)** and **[project page](https://dagroup-pku.github.io/PhysisForcing.github.io/)** of PhysisForcing.
 
@@ -39,7 +39,7 @@ Zilin Pan, Ye Huang, Hao Liang, Songyan Huang, Ruihua Zhang, Enze Xie†, Ming-Y
 
 - [x] Inference code & checkpoints for **PF_Wan** & **PF_Cosmos**
 - [x] Training code for **PF_Wan** & **PF_Cosmos**
-- [ ] Auxiliary teacher checkpoints
+- [x] Auxiliary teacher checkpoints
 
 ## 🎥 Demo
 
@@ -136,8 +136,6 @@ cd PhysisForcing/pf_cosmos   # or: cd PhysisForcing/pf_wan
 ```
 
 The two bundles use different PyTorch/CUDA stacks, so set each up in its own environment.
-
-> 🧪 Training: each bundle's README has a **Training** section — full fine-tuning for `pf_wan`, LoRA for `pf_cosmos`.
 
 ## 🙏 Acknowledgement
 
